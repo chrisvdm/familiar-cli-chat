@@ -1,0 +1,17 @@
+{
+  "name": "cli-chat",
+  "version": "0.1.0",
+  "description": "Local Node.js CLI chat client for the Familiar API",
+  "type": "module",
+  "bin": {
+    "cli-chat": "./bin/cli-chat.js"
+  },
+  "scripts": {
+    "start": "node ./bin/cli-chat.js",
+    "check": "node --check ./bin/cli-chat.js"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "license": "MIT"
+}

@@ -1,0 +1,21 @@
+[
+  {
+    "tool_name": "echo_back",
+    "description": "Repeats text back to the user.",
+    "status": "active",
+    "input_mode": "raw",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "text": {
+          "type": "string",
+          "description": "The raw text to echo."
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "additionalProperties": false
+    }
+  }
+]
