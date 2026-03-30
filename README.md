@@ -125,9 +125,3 @@ Inside `chat` mode:
 - Replies are rendered as assistant-facing plain text by default
 
 Local state lives in `.cli-chat/session.json`.
-
-## Project Docs
-
-- Project overview: [docs/project-overview.md](/Users/chris/Dev/cli-chat/docs/project-overview.md)
-- Architecture decisions: [docs/decisions.md](/Users/chris/Dev/cli-chat/docs/decisions.md)
-- Worklogs and debugging history: [docs/worklogs/2026-03-30-initial-cli-and-auth-bootstrap.md](/Users/chris/Dev/cli-chat/docs/worklogs/2026-03-30-initial-cli-and-auth-bootstrap.md)
