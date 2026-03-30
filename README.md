@@ -1,39 +1,61 @@
 # cli-chat
 
-Local Node.js CLI chat client for the Familiar hosted API.
+`cli-chat` is a local Node.js terminal client for the [Familiar](https://familiar.chrsvdmrw.workers.dev/docs/) hosted API.
 
-## Requirements
+It gives you a simple command-line chat interface that:
+- talks directly to Familiar over HTTP
+- keeps local conversation continuity
+- bootstraps a Familiar account automatically on first run
+- exposes basic account, thread, and tool-sync commands
 
+## Why This Exists
+
+Familiar is a hosted API, not a local SDK. This project provides the missing local interface layer: a small terminal app that makes Familiar usable from a developer shell without building a full web UI first.
+
+The scope is intentionally narrow. `cli-chat` is:
+- a chat client
+- a setup helper
+- a thin API wrapper
+
+It is not:
+- a local LLM runtime
+- a Familiar executor
+- a background job system
+
+## Features
+
+- Interactive terminal chat with `npm start -- chat`
+- One-shot message sending with `send`
+- Automatic account creation if no token is configured
+- Local persistence for channel and thread continuity
+- Tool syncing from JSON definitions
+- Minimal footprint with no runtime dependencies beyond Node 22
+
+## Quickstart
+
+Requirements:
 - Node.js 22+
 
-## Setup
+Install:
 
 ```bash
 npm install
+cp .env.example .env
 ```
 
-Optional environment variables:
+Start chatting:
 
 ```bash
-export FAMILIAR_API_TOKEN="your-token"
-export FAMILIAR_BASE_URL="https://familiar.chrsvdmrw.workers.dev"
-export FAMILIAR_CHANNEL_TYPE="cli"
-export FAMILIAR_CHANNEL_ID="my-local-machine"
-export FAMILIAR_THREAD_ID="thread_abc"
-export FAMILIAR_TOOLS_FILE="./tools.example.json"
+npm start -- chat
 ```
 
-If you do not have a token yet, create an account through the API:
+If no `FAMILIAR_API_TOKEN` is set in your shell, `.env`, or `dev.vars`, the CLI creates a Familiar account automatically, stores the returned token in `.env`, and continues into chat.
 
-```bash
-node ./bin/cli-chat.js init-account
-```
+The repo includes [`.env.example`](/Users/chris/Dev/cli-chat/.env.example) as the public template. Keep your real [`.env`](/Users/chris/Dev/cli-chat/.env) local and untracked.
 
-`chat` mode can also bootstrap itself. If no `FAMILIAR_API_TOKEN` is present in the environment, `.env`, or `dev.vars`, the CLI creates a Familiar account automatically, writes the returned token to `.env`, and continues into chat.
+## Common Commands
 
-## Commands
-
-Start an interactive chat:
+Interactive chat:
 
 ```bash
 npm start -- chat
@@ -43,6 +65,12 @@ Send a single message:
 
 ```bash
 node ./bin/cli-chat.js send "Hello"
+```
+
+Inspect the current account:
+
+```bash
+node ./bin/cli-chat.js whoami
 ```
 
 Sync tools from a JSON file:
@@ -59,11 +87,25 @@ node ./bin/cli-chat.js thread set thread_abc
 node ./bin/cli-chat.js thread clear
 ```
 
-Inspect the current account:
+## Config
+
+Recognized environment variables:
 
 ```bash
-node ./bin/cli-chat.js whoami
+FAMILIAR_API_TOKEN
+FAMILIAR_BASE_URL
+FAMILIAR_CHANNEL_TYPE
+FAMILIAR_CHANNEL_ID
+FAMILIAR_THREAD_ID
+FAMILIAR_TOOLS_FILE
 ```
+
+Config sources are loaded in this order:
+1. real shell environment
+2. `.env`
+3. `dev.vars`
+
+Already-set shell variables win over file-based values.
 
 ## Interactive Commands
 
@@ -75,10 +117,17 @@ Inside `chat` mode:
 - `/whoami` fetches the current account payload
 - `/exit` quits
 
-The CLI persists local session state in `.cli-chat/session.json`.
+## How It Works
 
-## Notes
+- Familiar receives normalized text at `POST /api/v1/input`
+- This CLI sends text input plus local channel identity
+- Familiar may return a `thread_id`, which is stored locally for continuity
+- Replies are rendered as assistant-facing plain text by default
 
-- Familiar accepts normalized text input at `POST /api/v1/input`.
-- Tool configuration uses `POST /api/v1/tools/sync`.
-- This CLI only handles the local chat interface. If your tools need execution, that still happens through your Familiar executor integration.
+Local state lives in `.cli-chat/session.json`.
+
+## Project Docs
+
+- Project overview: [docs/project-overview.md](/Users/chris/Dev/cli-chat/docs/project-overview.md)
+- Architecture decisions: [docs/decisions.md](/Users/chris/Dev/cli-chat/docs/decisions.md)
+- Worklogs and debugging history: [docs/worklogs/2026-03-30-initial-cli-and-auth-bootstrap.md](/Users/chris/Dev/cli-chat/docs/worklogs/2026-03-30-initial-cli-and-auth-bootstrap.md)
