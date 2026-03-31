@@ -100,6 +100,8 @@ The status payload includes thread display state, local portal health, hosted ro
 
 The current automated coverage includes CLI thread-state helpers and the portal startup decision logic that determines when chat reuses the local server versus promoting to the full runtime.
 
+The status payload also reports whether Discord listener auto-start will run, skip because it is disabled, or skip because `DISCORD_BOT_TOKEN` is not configured.
+
 Sync tools from a JSON file:
 
 ```bash

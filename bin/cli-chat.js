@@ -215,6 +215,26 @@ function getDiscordListenerConfig() {
   };
 }
 
+function planDiscordListenerStartup({ enabled, hasToken }) {
+  if (!enabled) {
+    return {
+      action: "skip",
+      reason: "disabled"
+    };
+  }
+
+  if (!hasToken) {
+    return {
+      action: "skip",
+      reason: "missing-token"
+    };
+  }
+
+  return {
+    action: "start"
+  };
+}
+
 function getVerboseStartup() {
   return ["1", "true", "yes"].includes(String(process.env.CLI_CHAT_VERBOSE_STARTUP || "false").toLowerCase());
 }
@@ -1050,6 +1070,7 @@ async function commandSend(config, state, rest) {
 async function buildStatus(config, state, { portalHandle = null, discordListenerHandle = null } = {}) {
   const portalConfig = getPortalConfig();
   const discordConfig = getDiscordListenerConfig();
+  const discordPlan = planDiscordListenerStartup(discordConfig);
   const localPortalHealthy = await isExecutorHealthy(portalConfig);
   const hostedPortalRoute = config.apiToken ? await checkHostedPortalRoute(config) : null;
 
@@ -1077,6 +1098,8 @@ async function buildStatus(config, state, { portalHandle = null, discordListener
     discord: {
       auto_start: discordConfig.enabled,
       configured: discordConfig.hasToken,
+      startup_action: discordPlan.action,
+      startup_reason: discordPlan.reason || null,
       managed_process: describeManagedProcess(discordListenerHandle, DISCORD_LISTENER_LOG_FILE)
     }
   };
@@ -1168,9 +1191,10 @@ async function commandChat(config, state) {
 
   try {
     portalHandle = await ensurePortalRunning(authenticatedConfig, getPortalConfig());
-    const discordListenerConfig = getDiscordListenerConfig();
-    if (discordListenerConfig.enabled && discordListenerConfig.hasToken) {
+    const discordPlan = planDiscordListenerStartup(getDiscordListenerConfig());
+    if (discordPlan.action === "start") {
       discordListenerHandle = {
+        kind: "discord-listener",
         process: await startDiscordListener()
       };
     }
@@ -1323,5 +1347,6 @@ export {
   extractThreadId,
   extractThreadName,
   getThreadDisplay,
+  planDiscordListenerStartup,
   planPortalStartup
 };

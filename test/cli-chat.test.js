@@ -6,6 +6,7 @@ import {
   extractThreadId,
   extractThreadName,
   getThreadDisplay,
+  planDiscordListenerStartup,
   planPortalStartup
 } from "../bin/cli-chat.js";
 
@@ -133,5 +134,43 @@ test("planPortalStartup prefers the local server in auto mode when the hosted ro
       hostedRouteOk: true
     }),
     { action: "start-local-server" }
+  );
+});
+
+test("planDiscordListenerStartup skips when disabled", () => {
+  assert.deepEqual(
+    planDiscordListenerStartup({
+      enabled: false,
+      hasToken: true
+    }),
+    {
+      action: "skip",
+      reason: "disabled"
+    }
+  );
+});
+
+test("planDiscordListenerStartup skips when the bot token is missing", () => {
+  assert.deepEqual(
+    planDiscordListenerStartup({
+      enabled: true,
+      hasToken: false
+    }),
+    {
+      action: "skip",
+      reason: "missing-token"
+    }
+  );
+});
+
+test("planDiscordListenerStartup starts only when enabled and configured", () => {
+  assert.deepEqual(
+    planDiscordListenerStartup({
+      enabled: true,
+      hasToken: true
+    }),
+    {
+      action: "start"
+    }
   );
 });
