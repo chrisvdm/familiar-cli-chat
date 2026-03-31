@@ -18,7 +18,7 @@ A webhook is a better fit than bot DM delivery when:
 ## What Was Added
 
 - `send_discord_webhook_message` in [tools.example.json](/Users/chris/Dev/cli-chat/tools.example.json)
-- `sendDiscordWebhookMessage` in [bin/portal.js](/Users/chris/Dev/cli-chat/bin/portal.js)
+- `sendDiscordWebhookMessage` in [bin/portal/server.js](/Users/chris/Dev/cli-chat/bin/portal/server.js)
 - README notes describing the webhook tool as a practical first-test path
 
 ## Tool Contract

@@ -360,7 +360,7 @@ async function ensurePortalRunning(portalConfig) {
     return null;
   }
 
-  const child = spawn(process.execPath, ["./bin/portal.js"], {
+  const child = spawn(process.execPath, ["./bin/portal/server.js"], {
     cwd: process.cwd(),
     env: process.env,
     stdio: ["ignore", "inherit", "inherit"]

@@ -5,14 +5,14 @@
   "type": "module",
   "bin": {
     "cli-chat": "./bin/cli-chat.js",
-    "portal-runtime": "./bin/portal-runtime.js"
+    "portal-runtime": "./bin/portal/runtime.js"
   },
   "scripts": {
     "start": "node ./bin/cli-chat.js",
-    "portal": "node ./bin/portal-runtime.js",
-    "portal:server": "node ./bin/portal.js",
-    "executor": "node ./bin/portal.js",
-    "check": "node --check ./bin/cli-chat.js && node --check ./bin/portal.js && node --check ./bin/portal-runtime.js"
+    "portal": "node ./bin/portal/runtime.js",
+    "portal:server": "node ./bin/portal/server.js",
+    "executor": "node ./bin/portal/server.js",
+    "check": "node --check ./bin/cli-chat.js && node --check ./bin/portal/server.js && node --check ./bin/portal/runtime.js && node --check ./bin/portal.js && node --check ./bin/portal-runtime.js"
   },
   "engines": {
     "node": ">=22.0.0"

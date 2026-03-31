@@ -17,7 +17,7 @@ Root cause:
 ## What Was Added
 
 - `send_discord_message` in [tools.example.json](/Users/chris/Dev/cli-chat/tools.example.json)
-- `sendDiscordDefaultWebhookMessage` in [bin/portal.js](/Users/chris/Dev/cli-chat/bin/portal.js)
+- `sendDiscordDefaultWebhookMessage` in [bin/portal/server.js](/Users/chris/Dev/cli-chat/bin/portal/server.js)
 - `DISCORD_WEBHOOK_URL` in [`.env.example`](/Users/chris/Dev/cli-chat/.env.example)
 
 ## Design

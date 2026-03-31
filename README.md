@@ -142,11 +142,12 @@ The repo ships with sample Discord tools in [tools.example.json](/Users/chris/De
 - `message` text only
 - uses `DISCORD_WEBHOOK_URL` from the local portal environment
 
-The matching sample portal server lives at [bin/portal.js](/Users/chris/Dev/cli-chat/bin/portal.js) and exposes:
+The matching sample portal server lives at [bin/portal/server.js](/Users/chris/Dev/cli-chat/bin/portal/server.js) and exposes:
 - `POST /tools/execute`
 - `GET /health`
 
-The packaged runtime lives at [bin/portal-runtime.js](/Users/chris/Dev/cli-chat/bin/portal-runtime.js).
+The packaged runtime lives at [bin/portal/runtime.js](/Users/chris/Dev/cli-chat/bin/portal/runtime.js).
+There is also a focused portal note in [bin/portal/README.md](/Users/chris/Dev/cli-chat/bin/portal/README.md).
 
 When you run `npm start -- chat`, the CLI starts the local portal server automatically unless `AUTO_START_PORTAL=false`.
 
