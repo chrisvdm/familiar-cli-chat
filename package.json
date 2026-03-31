@@ -12,8 +12,9 @@
     "start": "node ./bin/cli-chat.js",
     "portal": "node ./bin/portal/runtime.js",
     "portal:server": "node ./bin/portal/server.js",
+    "discord:listen": "node ./bin/adapters/discord-gateway.js",
     "executor": "node ./bin/portal/server.js",
-    "check": "node --check ./bin/cli-chat.js && node --check ./bin/portal/server.js && node --check ./bin/portal/runtime.js"
+    "check": "node --check ./bin/cli-chat.js && node --check ./bin/portal/server.js && node --check ./bin/portal/runtime.js && node --check ./bin/adapters/discord-gateway.js"
   },
   "engines": {
     "node": ">=22.0.0"

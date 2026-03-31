@@ -31,6 +31,7 @@ It is not:
 - Local persistence for channel and thread continuity
 - Tool syncing from JSON definitions
 - Sample Discord tool and local portal
+- Optional Discord gateway adapter for mention-based input
 - Minimal footprint with no runtime dependencies beyond Node 22
 
 ## Quickstart
@@ -53,7 +54,9 @@ npm start -- chat
 
 If no `FAMILIAR_API_TOKEN` is set in your shell, `.env`, or `dev.vars`, the CLI creates a Familiar account automatically, stores the returned token in `.env`, and continues into chat.
 
-By default, `chat` also auto-starts the bundled local portal on `127.0.0.1:8788` if one is not already running.
+By default, `chat` auto-starts the local portal server on `127.0.0.1:8788`. If Familiar's configured public portal route is stale or missing, `chat` now escalates to the full portal runtime automatically so the Cloudflare tunnel and hosted `base_url` are refreshed.
+
+If `DISCORD_BOT_TOKEN` is configured, `chat` also auto-starts the Discord mention listener by default.
 
 The repo includes [`.env.example`](/Users/chris/Dev/cli-chat/.env.example) as the public template. Keep your real [`.env`](/Users/chris/Dev/cli-chat/.env) local and untracked.
 
@@ -100,6 +103,12 @@ If you only want the local server without a tunnel, run:
 npm run portal:server
 ```
 
+Run the Discord mention listener manually:
+
+```bash
+npm run discord:listen
+```
+
 Manage thread state:
 
 ```bash
@@ -120,8 +129,12 @@ FAMILIAR_CHANNEL_ID
 FAMILIAR_THREAD_ID
 FAMILIAR_TOOLS_FILE
 AUTO_START_PORTAL
+AUTO_START_PORTAL_MODE
+AUTO_START_DISCORD_LISTENER
 EXECUTOR_PORT
 DISCORD_WEBHOOK_URL
+DISCORD_BOT_TOKEN
+PORTAL_BASE_URL
 CLOUDFLARED_BIN
 ```
 
@@ -132,13 +145,22 @@ Config sources are loaded in this order:
 
 Already-set shell variables win over file-based values.
 
+`AUTO_START_PORTAL_MODE` supports:
+- `auto`: start the local server when needed, but promote to full `npm run portal` behavior if the hosted route is stale
+- `server`: only manage the local portal server
+- `runtime`: always start the full portal runtime
+
+`AUTO_START_DISCORD_LISTENER` supports:
+- `true`: start the Discord gateway adapter during `chat` when `DISCORD_BOT_TOKEN` is configured
+- `false`: do not auto-start the Discord gateway adapter
+
 ## Sample Tools: Discord
 
 The repo ships with sample Discord tools in [tools.example.json](/Users/chris/Dev/cli-chat/tools.example.json):
 
-- `send_discord_message`
+- `discord`
 
-`send_discord_message` expects:
+`discord` expects:
 - `message` text only
 - uses `DISCORD_WEBHOOK_URL` from the local portal environment
 
@@ -149,11 +171,11 @@ The matching sample portal server lives at [bin/portal/server.js](/Users/chris/D
 The packaged runtime lives at [bin/portal/runtime.js](/Users/chris/Dev/cli-chat/bin/portal/runtime.js).
 There is also a focused portal note in [bin/portal/README.md](/Users/chris/Dev/cli-chat/bin/portal/README.md).
 
-When you run `npm start -- chat`, the CLI starts the local portal server automatically unless `AUTO_START_PORTAL=false`.
+When you run `npm start -- chat`, the CLI starts the local portal server automatically unless `AUTO_START_PORTAL=false`. If Familiar's configured integration route is stale, chat promotes itself to the full portal runtime automatically. If `DISCORD_BOT_TOKEN` is configured, chat also auto-starts the Discord gateway adapter unless `AUTO_START_DISCORD_LISTENER=false`.
 
-If you want a reliable first integration test, prefer `send_discord_message`.
+If you want a reliable first integration test, prefer `discord`.
 
-If you want Familiar to naturally handle prompts like "send this to Discord", `send_discord_message` is the easiest tool for it to choose because it only needs the message text.
+If you want Familiar to naturally handle prompts like "send this to Discord", `discord` is the easiest tool for it to choose because it only needs the message text.
 
 Under the hood, Familiar still talks to a tool executor contract. In this repo, the developer-facing product surface for that local runtime is called the portal.
 
@@ -161,7 +183,7 @@ Under the hood, Familiar still talks to a tool executor contract. In this repo, 
 
 The supported Discord delivery path is webhook-backed:
 
-- Tool: `send_discord_message`
+- Tool: `discord`
 - Uses: `DISCORD_WEBHOOK_URL`
 - Best for: the simplest "send this to Discord" experience
 
@@ -178,6 +200,34 @@ Setup:
 ```bash
 DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/...
 ```
+
+### Optional: Mention Listener
+
+If you want Discord messages to enter Familiar without typing them in the terminal, use the optional gateway adapter:
+
+```bash
+npm run discord:listen
+```
+
+This requires:
+1. `DISCORD_BOT_TOKEN` in [`.env`](/Users/chris/Dev/cli-chat/.env)
+2. `Message Content Intent` enabled in the Discord developer portal
+3. bot permissions such as:
+   - `View Channels`
+   - `Send Messages`
+   - `Read Message History`
+
+What it does:
+- listens for DMs and bot mentions in Discord
+- forwards normalized text to portal `POST /conversation/input`
+- sends Familiar's reply back to Discord
+- mirrors Familiar's reply into the active local CLI channel
+
+Optional env:
+- `PORTAL_BASE_URL` defaults to `http://127.0.0.1:8788`
+- `DISCORD_REPLY_TO_CHANNEL=true`
+- `DISCORD_MIRROR_TO_CLI=true`
+- `DISCORD_LISTENER_VERBOSE=false` keeps gateway connection logs out of the chat prompt by default
 
 ### End-To-End Familiar Test
 

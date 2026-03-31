@@ -16,6 +16,7 @@ const STATE_FILE = path.join(STATE_DIR, "session.json");
 const CHANNEL_MESSAGES_FILE = path.join(STATE_DIR, "channel-messages.json");
 const ENV_FILES = [".env", "dev.vars"];
 const DEFAULT_ENV_FILE = ".env";
+const SPINNER_FRAMES = ["|", "/", "-", "\\"];
 
 function printUsage() {
   console.log(`cli-chat
@@ -192,8 +193,18 @@ function getPortalConfig() {
     enabled: !["0", "false", "no"].includes(String(
       process.env.AUTO_START_PORTAL || process.env.AUTO_START_EXECUTOR || "true"
     ).toLowerCase()),
+    mode: String(process.env.AUTO_START_PORTAL_MODE || "auto").toLowerCase(),
     host: DEFAULT_EXECUTOR_HOST,
     port: Number(process.env.EXECUTOR_PORT || DEFAULT_EXECUTOR_PORT)
+  };
+}
+
+function getDiscordListenerConfig() {
+  return {
+    enabled: !["0", "false", "no"].includes(String(
+      process.env.AUTO_START_DISCORD_LISTENER || "true"
+    ).toLowerCase()),
+    hasToken: Boolean(String(process.env.DISCORD_BOT_TOKEN || "").trim())
   };
 }
 
@@ -422,6 +433,121 @@ function printApiError(error) {
   }
 }
 
+function createSpinner(label) {
+  if (!output.isTTY) {
+    return {
+      start() {},
+      update() {},
+      stop(message) {
+        if (message) {
+          console.log(message);
+        }
+      }
+    };
+  }
+
+  let frameIndex = 0;
+  let timer = null;
+  let currentLabel = label;
+
+  const render = () => {
+    output.write(`\r${SPINNER_FRAMES[frameIndex]} ${currentLabel}`);
+    frameIndex = (frameIndex + 1) % SPINNER_FRAMES.length;
+  };
+
+  return {
+    start() {
+      if (timer) {
+        return;
+      }
+      render();
+      timer = setInterval(render, 100);
+      timer.unref();
+    },
+    update(nextLabel) {
+      currentLabel = nextLabel;
+    },
+    stop(message) {
+      if (timer) {
+        clearInterval(timer);
+        timer = null;
+      }
+      output.write("\r\x1b[2K");
+      if (message) {
+        console.log(message);
+      }
+    }
+  };
+}
+
+async function fetchIntegration(config) {
+  try {
+    return await request(config, "/api/v1/integration");
+  } catch {
+    return null;
+  }
+}
+
+function isLocalHostname(hostname) {
+  return ["127.0.0.1", "localhost", "::1"].includes(String(hostname || "").toLowerCase());
+}
+
+async function checkHostedPortalRoute(config) {
+  const payload = await fetchIntegration(config);
+  const baseUrl = payload?.integration?.base_url;
+
+  if (typeof baseUrl !== "string" || !baseUrl.trim()) {
+    return {
+      ok: false,
+      warning: "Familiar integration base_url is not configured. Run `npm run portal` to publish a tunnel and update it."
+    };
+  }
+
+  let url;
+  try {
+    url = new URL(baseUrl);
+  } catch {
+    return {
+      ok: false,
+      warning: `Familiar integration base_url is invalid: ${baseUrl}`
+    };
+  }
+
+  if (isLocalHostname(url.hostname)) {
+    return {
+      ok: false,
+      warning: `Familiar integration base_url points to a local address (${baseUrl}), which hosted Familiar cannot reach. Run \`npm run portal\`.`
+    };
+  }
+
+  try {
+    const healthResponse = await fetch(new URL("/health", url), {
+      headers: {
+        Accept: "application/json"
+      }
+    });
+    const text = await healthResponse.text();
+    const data = text ? safeParseJson(text) : null;
+
+    if (!healthResponse.ok || data?.ok !== true || data?.service !== "portal") {
+      return {
+        ok: false,
+        warning: `Familiar integration base_url is set to ${baseUrl}, but /health did not return a valid portal response. Run \`npm run portal\` to refresh the public tunnel.`
+      };
+    }
+
+    return {
+      ok: true,
+      baseUrl
+    };
+  } catch {
+    return {
+      ok: false,
+      warning: `Familiar integration base_url is set to ${baseUrl}, but it is not reachable right now. Run \`npm run portal\` to refresh the public tunnel.`
+    };
+  }
+}
+
 async function isExecutorHealthy({ host, port }) {
   try {
     const response = await fetch(`http://${host}:${port}/health`);
@@ -431,43 +557,134 @@ async function isExecutorHealthy({ host, port }) {
   }
 }
 
-async function ensurePortalRunning(portalConfig) {
-  if (!portalConfig.enabled) {
-    return null;
-  }
-
-  if (await isExecutorHealthy(portalConfig)) {
-    console.log(`Using existing portal on http://${portalConfig.host}:${portalConfig.port}`);
-    return null;
-  }
-
+async function startPortalServer(portalConfig) {
   const child = spawn(process.execPath, ["./bin/portal/server.js"], {
     cwd: process.cwd(),
     env: process.env,
     stdio: ["ignore", "inherit", "inherit"]
   });
 
-  const waitForReady = async () => {
-    for (let attempt = 0; attempt < 20; attempt += 1) {
-      if (child.exitCode !== null) {
-        throw new Error("Portal exited before becoming ready.");
-      }
-
-      if (await isExecutorHealthy(portalConfig)) {
-        return;
-      }
-
-      await new Promise((resolve) => {
-        setTimeout(resolve, 150);
-      });
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    if (child.exitCode !== null) {
+      throw new Error("Portal exited before becoming ready.");
     }
 
-    throw new Error("Timed out waiting for portal to become ready.");
-  };
+    if (await isExecutorHealthy(portalConfig)) {
+      console.log(`Started portal on http://${portalConfig.host}:${portalConfig.port}`);
+      return child;
+    }
 
-  await waitForReady();
-  console.log(`Started portal on http://${portalConfig.host}:${portalConfig.port}`);
+    await new Promise((resolve) => {
+      setTimeout(resolve, 150);
+    });
+  }
+
+  throw new Error("Timed out waiting for portal to become ready.");
+}
+
+async function startPortalRuntime() {
+  const child = spawn(process.execPath, ["./bin/portal/runtime.js"], {
+    cwd: process.cwd(),
+    env: process.env,
+    stdio: ["ignore", "inherit", "inherit"]
+  });
+
   return child;
+}
+
+async function startDiscordListener() {
+  const child = spawn(process.execPath, ["./bin/adapters/discord-gateway.js"], {
+    cwd: process.cwd(),
+    env: process.env,
+    stdio: ["ignore", "inherit", "inherit"]
+  });
+
+  return child;
+}
+
+async function waitForHostedPortalRoute(config, timeoutMs = 15000) {
+  const startedAt = Date.now();
+
+  while (Date.now() - startedAt < timeoutMs) {
+    const route = await checkHostedPortalRoute(config);
+    if (route.ok) {
+      return route;
+    }
+
+    await new Promise((resolve) => {
+      setTimeout(resolve, 500);
+    });
+  }
+
+  return checkHostedPortalRoute(config);
+}
+
+async function ensurePortalRunning(config, portalConfig) {
+  if (!portalConfig.enabled) {
+    return null;
+  }
+
+  const spinner = createSpinner("Checking portal route...");
+  spinner.start();
+
+  const mode = portalConfig.mode;
+  try {
+    const localHealthy = await isExecutorHealthy(portalConfig);
+
+    if (mode === "runtime") {
+      spinner.update("Starting portal runtime...");
+      const runtimeChild = await startPortalRuntime();
+      spinner.update("Waiting for public portal route...");
+      const route = await waitForHostedPortalRoute(config);
+      spinner.stop();
+      return {
+        process: runtimeChild,
+        kind: "runtime",
+        warning: route.ok ? null : route.warning
+      };
+    }
+
+    if (mode === "server") {
+      if (localHealthy) {
+        spinner.stop(`Using existing portal on http://${portalConfig.host}:${portalConfig.port}`);
+        return null;
+      }
+
+      spinner.update("Starting local portal server...");
+      const processHandle = await startPortalServer(portalConfig);
+      spinner.stop();
+      return {
+        process: processHandle,
+        kind: "server"
+      };
+    }
+
+    const route = await checkHostedPortalRoute(config);
+    if (route.ok) {
+      if (localHealthy) {
+        spinner.stop(`Using existing portal on http://${portalConfig.host}:${portalConfig.port}`);
+      } else {
+        spinner.update("Starting local portal server...");
+        await startPortalServer(portalConfig);
+        spinner.stop();
+      }
+      return null;
+    }
+
+    spinner.update("Refreshing portal tunnel...");
+    const runtimeChild = await startPortalRuntime();
+    spinner.update("Waiting for public portal route...");
+    const nextRoute = await waitForHostedPortalRoute(config);
+    spinner.stop();
+    return {
+      process: runtimeChild,
+      kind: "runtime",
+      warning: nextRoute.ok ? null : nextRoute.warning
+    };
+  } catch (error) {
+    spinner.stop();
+    throw error;
+  }
 }
 
 async function loadToolsFile(filePath) {
@@ -649,7 +866,8 @@ async function commandThread(config, state, rest) {
 
 async function commandChat(config, state) {
   const authenticatedConfig = await ensureAuthenticated(config, state, { interactive: true });
-  const portalProcess = await ensurePortalRunning(getPortalConfig());
+  let portalHandle = null;
+  let discordListenerHandle = null;
   const rl = readline.createInterface({ input, output });
   const inboxWatcher = startChannelInboxWatcher({
     type: authenticatedConfig.channelType,
@@ -657,21 +875,47 @@ async function commandChat(config, state) {
   });
 
   const cleanupPortal = () => {
-    if (portalProcess && portalProcess.exitCode === null) {
-      portalProcess.kill("SIGINT");
+    const child = portalHandle?.process;
+    if (child && child.exitCode === null) {
+      child.kill("SIGINT");
+    }
+  };
+
+  const cleanupDiscordListener = () => {
+    const child = discordListenerHandle?.process;
+    if (child && child.exitCode === null) {
+      child.kill("SIGINT");
     }
   };
 
   process.once("SIGINT", cleanupPortal);
   process.once("SIGTERM", cleanupPortal);
-
-  console.log(`Connected to ${authenticatedConfig.baseUrl}`);
-  console.log(`Channel: ${authenticatedConfig.channelType}:${authenticatedConfig.channelId}`);
-  console.log(`Thread: ${authenticatedConfig.threadId || "(auto)"}`);
-  console.log("Commands: /new, /thread, /clear, /whoami, /exit");
+  process.once("SIGINT", cleanupDiscordListener);
+  process.once("SIGTERM", cleanupDiscordListener);
 
   try {
+    portalHandle = await ensurePortalRunning(authenticatedConfig, getPortalConfig());
+    const discordListenerConfig = getDiscordListenerConfig();
+    if (discordListenerConfig.enabled && discordListenerConfig.hasToken) {
+      discordListenerHandle = {
+        process: await startDiscordListener()
+      };
+    }
     await inboxWatcher.prime();
+
+    console.log(`Connected to ${authenticatedConfig.baseUrl}`);
+    console.log(`Channel: ${authenticatedConfig.channelType}:${authenticatedConfig.channelId}`);
+    console.log(`Thread: ${authenticatedConfig.threadId || "(auto)"}`);
+    console.log("Commands: /new, /thread, /clear, /whoami, /exit");
+
+    if (portalHandle?.warning) {
+      console.log(`Warning: ${portalHandle.warning}`);
+    } else {
+      const portalRoute = await checkHostedPortalRoute(authenticatedConfig);
+      if (!portalRoute.ok) {
+        console.log(`Warning: ${portalRoute.warning}`);
+      }
+    }
 
     while (true) {
       const line = (await rl.question("> ")).trim();
@@ -729,7 +973,10 @@ async function commandChat(config, state) {
   } finally {
     process.removeListener("SIGINT", cleanupPortal);
     process.removeListener("SIGTERM", cleanupPortal);
+    process.removeListener("SIGINT", cleanupDiscordListener);
+    process.removeListener("SIGTERM", cleanupDiscordListener);
     inboxWatcher.stop();
+    cleanupDiscordListener();
     cleanupPortal();
     rl.close();
   }

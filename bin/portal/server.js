@@ -8,6 +8,7 @@ import path from "node:path";
 import process from "node:process";
 
 const DEFAULT_PORT = 8788;
+const DEFAULT_FAMILIAR_BASE_URL = "https://familiar.chrsvdmrw.workers.dev";
 const ENV_FILES = [".env", "dev.vars"];
 const execFileAsync = promisify(execFile);
 const PORTAL_LOG_DIR = path.join(process.cwd(), ".cli-chat");
@@ -38,6 +39,19 @@ const server = http.createServer(async (request, response) => {
         result
       };
       await logPortalEvent("channel-message-response", successBody);
+      return sendJson(response, 200, successBody);
+    }
+
+    if (request.method === "POST" && request.url === "/conversation/input") {
+      const payload = await readJsonBody(request);
+      await logPortalEvent("conversation-input-request", payload);
+      const result = await forwardConversationInput(payload);
+      const successBody = {
+        ok: true,
+        state: "completed",
+        result
+      };
+      await logPortalEvent("conversation-input-response", successBody);
       return sendJson(response, 200, successBody);
     }
 
@@ -112,6 +126,7 @@ async function executeTool(payload) {
       return {
         summary: String(args.text || "")
       };
+    case "discord":
     case "send_discord_message":
       return sendDiscordDefaultWebhookMessage(args);
     case "send_discord_webhook_message":
@@ -122,6 +137,64 @@ async function executeTool(payload) {
       throw error;
     }
   }
+}
+
+async function forwardConversationInput(payload) {
+  const channel = extractChannel(payload);
+  const threadId = extractThreadId(payload);
+  const input = normalizeConversationInput(payload);
+
+  if (!channel.id || !channel.type) {
+    const error = new Error("Missing channel.id or channel.type.");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (!input.text) {
+    const error = new Error("Missing input.text.");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const baseUrl = String(process.env.FAMILIAR_BASE_URL || DEFAULT_FAMILIAR_BASE_URL).trim();
+  const apiToken = String(process.env.FAMILIAR_API_TOKEN || "").trim();
+
+  if (!apiToken) {
+    const error = new Error("Missing FAMILIAR_API_TOKEN.");
+    error.statusCode = 500;
+    throw error;
+  }
+
+  const response = await fetch(new URL("/api/v1/conversation/input", baseUrl), {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiToken}`,
+      Accept: "application/json",
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      thread_id: threadId || undefined,
+      channel,
+      input
+    })
+  });
+
+  const text = await response.text();
+  const data = text ? safeParseJson(text) : null;
+
+  if (!response.ok) {
+    const details = data ? JSON.stringify(data) : text;
+    const error = new Error(`Familiar conversation input error ${response.status}: ${details || response.statusText}`);
+    error.statusCode = response.status || 502;
+    throw error;
+  }
+
+  return {
+    summary: "Forwarded conversation input to Familiar.",
+    thread_id: extractThreadId(data) || threadId || null,
+    response_content: extractMessageContent(data) || null,
+    familiar_response: data ?? text
+  };
 }
 
 async function storeChannelMessage(payload) {
@@ -278,6 +351,23 @@ function extractChannel(payload) {
   return {
     type: String(payload?.channel_type || "").trim(),
     id: String(payload?.channel_id || "").trim()
+  };
+}
+
+function normalizeConversationInput(payload) {
+  const directInput = payload?.input;
+  if (directInput && typeof directInput === "object") {
+    const kind = String(directInput.kind || "text").trim() || "text";
+    const text = String(directInput.text || "").trim();
+    return {
+      kind,
+      text
+    };
+  }
+
+  return {
+    kind: "text",
+    text: String(payload?.text || payload?.content || payload?.message || "").trim()
   };
 }
 

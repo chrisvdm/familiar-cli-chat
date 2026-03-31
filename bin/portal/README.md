@@ -8,6 +8,7 @@ Files:
 
 Current routes:
 - `GET /health`
+- `POST /conversation/input`
 - `POST /tools/execute`
 - `POST /channels/messages`
 
@@ -68,6 +69,35 @@ curl -X POST http://127.0.0.1:8788/tools/execute \
     }
   }'
 ```
+
+### Example conversation input request
+
+```bash
+curl -X POST http://127.0.0.1:8788/conversation/input \
+  -H "Content-Type: application/json" \
+  -d '{
+    "channel": {
+      "type": "discord",
+      "id": "995263437775061155"
+    },
+    "thread_id": "thread_abc",
+    "input": {
+      "kind": "text",
+      "text": "@familiar what'\''s happening?"
+    }
+  }'
+```
+
+What this route does:
+- accepts normalized inbound channel input from an external adapter
+- forwards it to Familiar at `POST /api/v1/conversation/input`
+- returns the Familiar response payload in a portal-wrapped success body
+
+This is the intended generic inbound boundary for sources like:
+- Discord
+- Slack
+- email relays
+- custom webhooks
 
 ### Example channel delivery request
 

@@ -7,9 +7,11 @@ It exists to make Familiar tools feel like part of one local product instead of 
 ## What Portal Does
 
 - exposes a local HTTP surface for tool execution
+- accepts normalized inbound conversation input at `POST /conversation/input`
 - receives Familiar tool calls at `POST /tools/execute`
 - receives Familiar channel deliveries at `POST /channels/messages`
 - runs tool-specific logic locally
+- forwards generic inbound channel text to Familiar
 - stores channel deliveries locally for the CLI to display
 - returns blocking results back to Familiar
 
@@ -38,13 +40,14 @@ So the distinction is:
 ## Current Routes
 
 - `GET /health`
+- `POST /conversation/input`
 - `POST /tools/execute`
 - `POST /channels/messages`
 
 ## Current Tool Support
 
 - `echo_back`
-- `send_discord_message`
+- `discord`
 - `send_discord_webhook_message`
 
 ## Future Direction
