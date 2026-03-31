@@ -14,6 +14,9 @@ const DEFAULT_EXECUTOR_PORT = 8788;
 const STATE_DIR = path.join(process.cwd(), ".cli-chat");
 const STATE_FILE = path.join(STATE_DIR, "session.json");
 const CHANNEL_MESSAGES_FILE = path.join(STATE_DIR, "channel-messages.json");
+const PORTAL_SERVER_LOG_FILE = path.join(STATE_DIR, "portal-server.log");
+const PORTAL_RUNTIME_LOG_FILE = path.join(STATE_DIR, "portal-runtime.log");
+const DISCORD_LISTENER_LOG_FILE = path.join(STATE_DIR, "discord-listener.log");
 const ENV_FILES = [".env", "dev.vars"];
 const DEFAULT_ENV_FILE = ".env";
 const SPINNER_FRAMES = ["|", "/", "-", "\\"];
@@ -25,6 +28,7 @@ Usage:
   cli-chat chat
   cli-chat send "message text"
   cli-chat init-account
+  cli-chat status
   cli-chat sync-tools [path/to/tools.json]
   cli-chat thread new [name]
   cli-chat thread set <thread_id>
@@ -42,6 +46,7 @@ Environment:
   AUTO_START_PORTAL         Optional, defaults to "true" for chat
   AUTO_START_EXECUTOR       Legacy alias for AUTO_START_PORTAL
   EXECUTOR_PORT             Optional, defaults to ${DEFAULT_EXECUTOR_PORT}
+  CLI_CHAT_VERBOSE_STARTUP  Optional, defaults to "false"
 `);
 }
 
@@ -208,6 +213,10 @@ function getDiscordListenerConfig() {
   };
 }
 
+function getVerboseStartup() {
+  return ["1", "true", "yes"].includes(String(process.env.CLI_CHAT_VERBOSE_STARTUP || "false").toLowerCase());
+}
+
 function requireToken(config) {
   if (!config.apiToken) {
     throw new Error("Missing FAMILIAR_API_TOKEN.");
@@ -265,6 +274,30 @@ function buildInputPayload(config, message, threadId, tools) {
       id: config.channelId
     }
   });
+}
+
+function extractThreadName(payload) {
+  const queue = [payload];
+
+  while (queue.length > 0) {
+    const value = queue.shift();
+    if (!value || typeof value !== "object") {
+      continue;
+    }
+
+    const id = typeof value.id === "string" ? value.id : null;
+    const name = typeof value.name === "string" ? value.name.trim() : "";
+
+    if (id && name) {
+      return name;
+    }
+
+    for (const nested of Object.values(value)) {
+      queue.push(nested);
+    }
+  }
+
+  return null;
 }
 
 function extractThreadId(payload) {
@@ -371,14 +404,78 @@ function collectUnreadChannelMessages(messages, channel, seenIds) {
 }
 
 function renderChannelMessage(entry) {
-  const threadSuffix = entry.thread_id ? ` thread ${entry.thread_id}` : "";
-  return `[portal${threadSuffix}] ${entry.content}`;
+  return entry.content;
+}
+
+function getThreadDisplay(state, fallbackThreadId) {
+  if (state?.threadName) {
+    return state.threadName;
+  }
+
+  if (fallbackThreadId) {
+    return fallbackThreadId;
+  }
+
+  return "(auto)";
+}
+
+async function appendLogLine(filePath, line) {
+  await ensureStateDir();
+  await fs.appendFile(filePath, `${line}\n`, "utf8");
+}
+
+function attachChildLogging(child, label, logFile, { mirrorToConsole = false } = {}) {
+  const writeChunk = async (streamLabel, chunk) => {
+    const text = chunk.toString("utf8");
+    const lines = text.split(/\r?\n/).filter(Boolean);
+
+    for (const line of lines) {
+      const entry = `[${new Date().toISOString()}] [${label}] [${streamLabel}] ${line}`;
+      try {
+        await appendLogLine(logFile, entry);
+      } catch (error) {
+        if (mirrorToConsole) {
+          console.error(`[${label}] failed to write log: ${error.message}`);
+        }
+      }
+
+      if (mirrorToConsole) {
+        const target = streamLabel === "stderr" ? console.error : console.log;
+        target(`[${label}] ${line}`);
+      }
+    }
+  };
+
+  child.stdout?.on("data", (chunk) => {
+    void writeChunk("stdout", chunk);
+  });
+  child.stderr?.on("data", (chunk) => {
+    void writeChunk("stderr", chunk);
+  });
+  child.once("exit", (code, signal) => {
+    void appendLogLine(
+      logFile,
+      `[${new Date().toISOString()}] [${label}] [exit] code=${code ?? "null"} signal=${signal ?? "null"}`
+    );
+  });
+}
+
+function createManagedChild(scriptPath, logFile, label) {
+  const child = spawn(process.execPath, [scriptPath], {
+    cwd: process.cwd(),
+    env: process.env,
+    stdio: ["ignore", "pipe", "pipe"]
+  });
+
+  attachChildLogging(child, label, logFile, { mirrorToConsole: getVerboseStartup() });
+  return child;
 }
 
 function startChannelInboxWatcher(channel) {
   const seenIds = new Set();
   let disposed = false;
   let polling = false;
+  let interval = null;
 
   const poll = async () => {
     if (disposed || polling) {
@@ -404,16 +501,20 @@ function startChannelInboxWatcher(channel) {
   const prime = async () => {
     const messages = await readChannelMessages();
     collectUnreadChannelMessages(messages, channel, seenIds);
+    if (!interval) {
+      interval = setInterval(() => {
+        void poll();
+      }, 1000);
+      interval.unref();
+    }
   };
-
-  const interval = setInterval(() => {
-    void poll();
-  }, 1000);
-  interval.unref();
 
   const stop = () => {
     disposed = true;
-    clearInterval(interval);
+    if (interval) {
+      clearInterval(interval);
+      interval = null;
+    }
   };
 
   return {
@@ -558,11 +659,7 @@ async function isExecutorHealthy({ host, port }) {
 }
 
 async function startPortalServer(portalConfig) {
-  const child = spawn(process.execPath, ["./bin/portal/server.js"], {
-    cwd: process.cwd(),
-    env: process.env,
-    stdio: ["ignore", "inherit", "inherit"]
-  });
+  const child = createManagedChild("./bin/portal/server.js", PORTAL_SERVER_LOG_FILE, "portal-server");
 
   for (let attempt = 0; attempt < 20; attempt += 1) {
     if (child.exitCode !== null) {
@@ -583,23 +680,11 @@ async function startPortalServer(portalConfig) {
 }
 
 async function startPortalRuntime() {
-  const child = spawn(process.execPath, ["./bin/portal/runtime.js"], {
-    cwd: process.cwd(),
-    env: process.env,
-    stdio: ["ignore", "inherit", "inherit"]
-  });
-
-  return child;
+  return createManagedChild("./bin/portal/runtime.js", PORTAL_RUNTIME_LOG_FILE, "portal-runtime");
 }
 
 async function startDiscordListener() {
-  const child = spawn(process.execPath, ["./bin/adapters/discord-gateway.js"], {
-    cwd: process.cwd(),
-    env: process.env,
-    stdio: ["ignore", "inherit", "inherit"]
-  });
-
-  return child;
+  return createManagedChild("./bin/adapters/discord-gateway.js", DISCORD_LISTENER_LOG_FILE, "discord-listener");
 }
 
 async function waitForHostedPortalRoute(config, timeoutMs = 15000) {
@@ -709,8 +794,20 @@ async function sendMessage(config, state, message, tools) {
   });
 
   const nextThreadId = extractThreadId(response) || config.threadId;
+  const nextThreadName = extractThreadName(response) || state.threadName || null;
+  let stateChanged = false;
+
   if (nextThreadId && nextThreadId !== state.threadId) {
     state.threadId = nextThreadId;
+    stateChanged = true;
+  }
+
+  if (nextThreadName && nextThreadName !== state.threadName) {
+    state.threadName = nextThreadName;
+    stateChanged = true;
+  }
+
+  if (stateChanged) {
     await saveState(state);
   }
 
@@ -821,6 +918,45 @@ async function commandSend(config, state, rest) {
   console.log(formatPayload(response));
 }
 
+async function buildStatus(config, state, { portalHandle = null, discordListenerHandle = null } = {}) {
+  const portalConfig = getPortalConfig();
+  const discordConfig = getDiscordListenerConfig();
+  const localPortalHealthy = await isExecutorHealthy(portalConfig);
+  const hostedPortalRoute = config.apiToken ? await checkHostedPortalRoute(config) : null;
+
+  return {
+    familiar_base_url: config.baseUrl,
+    channel: `${config.channelType}:${config.channelId}`,
+    thread: {
+      id: state.threadId || config.threadId || null,
+      name: state.threadName || null,
+      display: getThreadDisplay(state, state.threadId || config.threadId)
+    },
+    portal: {
+      auto_start: portalConfig.enabled,
+      mode: portalConfig.mode,
+      local_url: `http://${portalConfig.host}:${portalConfig.port}`,
+      local_healthy: localPortalHealthy,
+      hosted_route_ok: hostedPortalRoute?.ok ?? null,
+      hosted_route_warning: hostedPortalRoute?.ok === false ? hostedPortalRoute.warning : null,
+      managed_process: portalHandle?.kind || null,
+      runtime_log: PORTAL_RUNTIME_LOG_FILE,
+      server_log: PORTAL_SERVER_LOG_FILE
+    },
+    discord: {
+      auto_start: discordConfig.enabled,
+      configured: discordConfig.hasToken,
+      running_in_chat: Boolean(discordListenerHandle?.process && discordListenerHandle.process.exitCode === null),
+      log: DISCORD_LISTENER_LOG_FILE
+    }
+  };
+}
+
+async function commandStatus(config, state, options = {}) {
+  const status = await buildStatus(config, state, options);
+  console.log(JSON.stringify(status, null, 2));
+}
+
 async function commandThread(config, state, rest) {
   const [action, ...args] = rest;
 
@@ -836,8 +972,10 @@ async function commandThread(config, state, rest) {
         }
       });
       const threadId = extractThreadId(response);
+      const threadName = extractThreadName(response) || name || null;
       if (threadId) {
         state.threadId = threadId;
+        state.threadName = threadName;
         await saveState(state);
       }
       console.log(JSON.stringify(response, null, 2));
@@ -849,12 +987,14 @@ async function commandThread(config, state, rest) {
         throw new Error("Usage: cli-chat thread set <thread_id>");
       }
       state.threadId = threadId;
+      delete state.threadName;
       await saveState(state);
       console.log(`Active thread set to ${threadId}`);
       return;
     }
     case "clear": {
       delete state.threadId;
+      delete state.threadName;
       await saveState(state);
       console.log("Cleared active thread.");
       return;
@@ -905,8 +1045,8 @@ async function commandChat(config, state) {
 
     console.log(`Connected to ${authenticatedConfig.baseUrl}`);
     console.log(`Channel: ${authenticatedConfig.channelType}:${authenticatedConfig.channelId}`);
-    console.log(`Thread: ${authenticatedConfig.threadId || "(auto)"}`);
-    console.log("Commands: /new, /thread, /clear, /whoami, /exit");
+    console.log(`Thread: ${getThreadDisplay(state, authenticatedConfig.threadId)}`);
+    console.log("Commands: /new, /thread, /clear, /status, /whoami, /exit");
 
     if (portalHandle?.warning) {
       console.log(`Warning: ${portalHandle.warning}`);
@@ -923,17 +1063,27 @@ async function commandChat(config, state) {
         continue;
       }
 
-      if (line === "/exit" || line === "/quit") {
+      if (line === "/exit" || line === "/quit" || line === "/q" || line === "/:q") {
+        console.log("Goodbye! 👋");
         break;
       }
 
       if (line === "/thread") {
-        console.log(state.threadId || "(none)");
+        console.log(getThreadDisplay(state, state.threadId || authenticatedConfig.threadId));
+        continue;
+      }
+
+      if (line === "/status") {
+        await commandStatus(authenticatedConfig, state, {
+          portalHandle,
+          discordListenerHandle
+        });
         continue;
       }
 
       if (line === "/clear") {
         delete state.threadId;
+        delete state.threadName;
         await saveState(state);
         console.log("Active thread cleared.");
         continue;
@@ -955,8 +1105,10 @@ async function commandChat(config, state) {
           }
         });
         const threadId = extractThreadId(response);
+        const threadName = extractThreadName(response) || name || null;
         if (threadId) {
           state.threadId = threadId;
+          state.threadName = threadName;
           await saveState(state);
         }
         console.log(JSON.stringify(response, null, 2));
@@ -997,6 +1149,9 @@ async function main() {
       return;
     case "init-account":
       await commandInitAccount(state);
+      return;
+    case "status":
+      await commandStatus(config, state);
       return;
     case "sync-tools":
       await commandSyncTools(config, rest);

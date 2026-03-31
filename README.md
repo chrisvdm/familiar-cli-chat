@@ -27,6 +27,7 @@ It is not:
 
 - Interactive terminal chat with `npm start -- chat`
 - One-shot message sending with `send`
+- Runtime status inspection with `status`
 - Automatic account creation if no token is configured
 - Local persistence for channel and thread continuity
 - Tool syncing from JSON definitions
@@ -58,6 +59,13 @@ By default, `chat` auto-starts the local portal server on `127.0.0.1:8788`. If F
 
 If `DISCORD_BOT_TOKEN` is configured, `chat` also auto-starts the Discord mention listener by default.
 
+Auto-started background process logs are written to:
+- [`.cli-chat/portal-server.log`](/Users/chris/Dev/cli-chat/.cli-chat/portal-server.log)
+- [`.cli-chat/portal-runtime.log`](/Users/chris/Dev/cli-chat/.cli-chat/portal-runtime.log)
+- [`.cli-chat/discord-listener.log`](/Users/chris/Dev/cli-chat/.cli-chat/discord-listener.log)
+
+Set `CLI_CHAT_VERBOSE_STARTUP=true` if you want those child-process logs mirrored into the terminal during chat startup.
+
 The repo includes [`.env.example`](/Users/chris/Dev/cli-chat/.env.example) as the public template. Keep your real [`.env`](/Users/chris/Dev/cli-chat/.env) local and untracked.
 
 ## Common Commands
@@ -78,6 +86,12 @@ Inspect the current account:
 
 ```bash
 node ./bin/cli-chat.js whoami
+```
+
+Inspect portal, thread, and Discord listener status:
+
+```bash
+node ./bin/cli-chat.js status
 ```
 
 Sync tools from a JSON file:
@@ -136,6 +150,7 @@ DISCORD_WEBHOOK_URL
 DISCORD_BOT_TOKEN
 PORTAL_BASE_URL
 CLOUDFLARED_BIN
+CLI_CHAT_VERBOSE_STARTUP
 ```
 
 Config sources are loaded in this order:
@@ -221,7 +236,7 @@ What it does:
 - listens for DMs and bot mentions in Discord
 - forwards normalized text to portal `POST /conversation/input`
 - sends Familiar's reply back to Discord
-- mirrors Familiar's reply into the active local CLI channel
+- mirrors both the inbound Discord message and the outbound Familiar reply into the active local CLI channel
 
 Optional env:
 - `PORTAL_BASE_URL` defaults to `http://127.0.0.1:8788`
@@ -274,8 +289,9 @@ send this to discord: hello from familiar
 Inside `chat` mode:
 
 - `/new [name]` creates and activates a new thread
-- `/thread` prints the current thread id
+- `/thread` prints the current thread name when known, otherwise the thread id
 - `/clear` clears the active thread
+- `/status` prints portal, thread, and Discord listener status
 - `/whoami` fetches the current account payload
 - `/exit` quits
 
