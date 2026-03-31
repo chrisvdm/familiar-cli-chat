@@ -96,6 +96,8 @@ Inspect portal, thread, and Discord listener status:
 node ./bin/cli-chat.js status
 ```
 
+The status payload includes thread display state, local portal health, hosted route health, managed child-process state, and relevant log file paths.
+
 Sync tools from a JSON file:
 
 ```bash

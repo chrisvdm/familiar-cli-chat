@@ -511,6 +511,17 @@ function createManagedChild(scriptPath, logFile, label) {
   return child;
 }
 
+function describeManagedProcess(handle, logFile) {
+  const child = handle?.process || null;
+
+  return {
+    kind: handle?.kind || null,
+    pid: child?.pid || null,
+    running: Boolean(child && child.exitCode === null),
+    log: logFile
+  };
+}
+
 async function assertChildStillRunning(child, logFile, message) {
   if (child.exitCode !== null) {
     throw await buildStartupError(message, logFile);
@@ -1049,15 +1060,16 @@ async function buildStatus(config, state, { portalHandle = null, discordListener
       local_healthy: localPortalHealthy,
       hosted_route_ok: hostedPortalRoute?.ok ?? null,
       hosted_route_warning: hostedPortalRoute?.ok === false ? hostedPortalRoute.warning : null,
-      managed_process: portalHandle?.kind || null,
+      managed_process: describeManagedProcess(portalHandle, portalHandle?.kind === "runtime"
+        ? PORTAL_RUNTIME_LOG_FILE
+        : PORTAL_SERVER_LOG_FILE),
       runtime_log: PORTAL_RUNTIME_LOG_FILE,
       server_log: PORTAL_SERVER_LOG_FILE
     },
     discord: {
       auto_start: discordConfig.enabled,
       configured: discordConfig.hasToken,
-      running_in_chat: Boolean(discordListenerHandle?.process && discordListenerHandle.process.exitCode === null),
-      log: DISCORD_LISTENER_LOG_FILE
+      managed_process: describeManagedProcess(discordListenerHandle, DISCORD_LISTENER_LOG_FILE)
     }
   };
 }
