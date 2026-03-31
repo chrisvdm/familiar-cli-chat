@@ -147,6 +147,7 @@ FAMILIAR_TOOLS_FILE
 AUTO_START_PORTAL
 AUTO_START_PORTAL_MODE
 AUTO_START_DISCORD_LISTENER
+PORTAL_PORT
 EXECUTOR_PORT
 DISCORD_WEBHOOK_URL
 DISCORD_BOT_TOKEN
@@ -170,6 +171,10 @@ Already-set shell variables win over file-based values.
 `AUTO_START_DISCORD_LISTENER` supports:
 - `true`: start the Discord gateway adapter during `chat` when `DISCORD_BOT_TOKEN` is configured
 - `false`: do not auto-start the Discord gateway adapter
+
+`PORTAL_PORT` is the preferred local port variable for the portal runtime.
+
+`EXECUTOR_PORT` is still accepted as a legacy alias for compatibility.
 
 ## Sample Tools: Discord
 

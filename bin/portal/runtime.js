@@ -13,7 +13,7 @@ const QUICK_TUNNEL_PATTERN = /https:\/\/[a-z0-9-]+\.trycloudflare\.com/i;
 
 await loadEnvFiles();
 
-const port = Number(process.env.EXECUTOR_PORT || DEFAULT_PORT);
+const port = Number(process.env.PORTAL_PORT || process.env.EXECUTOR_PORT || DEFAULT_PORT);
 const host = DEFAULT_HOST;
 const familiarBaseUrl = process.env.FAMILIAR_BASE_URL || DEFAULT_FAMILIAR_BASE_URL;
 const cloudflaredBin = process.env.CLOUDFLARED_BIN || "cloudflared";

@@ -17,7 +17,7 @@ const CHANNEL_MESSAGES_FILE = path.join(PORTAL_LOG_DIR, "channel-messages.json")
 
 await loadEnvFiles();
 
-const port = Number(process.env.EXECUTOR_PORT || DEFAULT_PORT);
+const port = Number(process.env.PORTAL_PORT || process.env.EXECUTOR_PORT || DEFAULT_PORT);
 const host = "127.0.0.1";
 
 const server = http.createServer(async (request, response) => {

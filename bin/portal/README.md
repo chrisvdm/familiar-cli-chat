@@ -23,7 +23,7 @@ npm run portal
 ```
 
 What it does:
-- starts or reuses the local portal server on `127.0.0.1:${EXECUTOR_PORT:-8788}`
+- starts or reuses the local portal server on `127.0.0.1:${PORTAL_PORT:-${EXECUTOR_PORT:-8788}}`
 - starts a Cloudflare quick tunnel
 - detects the public tunnel URL
 - updates Familiar's integration `base_url` when `FAMILIAR_API_TOKEN` is present
@@ -126,6 +126,10 @@ npm run portal
 ```
 
 That runs `runtime.js`, which manages the full hosted Familiar flow.
+
+Port selection:
+- prefer `PORTAL_PORT`
+- `EXECUTOR_PORT` is still accepted as a legacy alias
 
 If you only want the local server:
 

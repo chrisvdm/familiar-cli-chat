@@ -10,7 +10,7 @@ import { stdin as input, stdout as output } from "node:process";
 
 const DEFAULT_BASE_URL = "https://familiar.chrsvdmrw.workers.dev";
 const DEFAULT_EXECUTOR_HOST = "127.0.0.1";
-const DEFAULT_EXECUTOR_PORT = 8788;
+const DEFAULT_PORTAL_PORT = 8788;
 const STATE_DIR = path.join(process.cwd(), ".cli-chat");
 const STATE_FILE = path.join(STATE_DIR, "session.json");
 const CHANNEL_MESSAGES_FILE = path.join(STATE_DIR, "channel-messages.json");
@@ -45,7 +45,8 @@ Environment:
   FAMILIAR_TOOLS_FILE       Optional default tools file for sync-tools
   AUTO_START_PORTAL         Optional, defaults to "true" for chat
   AUTO_START_EXECUTOR       Legacy alias for AUTO_START_PORTAL
-  EXECUTOR_PORT             Optional, defaults to ${DEFAULT_EXECUTOR_PORT}
+  PORTAL_PORT               Optional, defaults to ${DEFAULT_PORTAL_PORT}
+  EXECUTOR_PORT             Legacy alias for PORTAL_PORT
   CLI_CHAT_VERBOSE_STARTUP  Optional, defaults to "false"
 `);
 }
@@ -200,7 +201,7 @@ function getPortalConfig() {
     ).toLowerCase()),
     mode: String(process.env.AUTO_START_PORTAL_MODE || "auto").toLowerCase(),
     host: DEFAULT_EXECUTOR_HOST,
-    port: Number(process.env.EXECUTOR_PORT || DEFAULT_EXECUTOR_PORT)
+    port: Number(process.env.PORTAL_PORT || process.env.EXECUTOR_PORT || DEFAULT_PORTAL_PORT)
   };
 }
 
