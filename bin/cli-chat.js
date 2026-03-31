@@ -6,6 +6,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 import readline from "node:readline/promises";
+import { fileURLToPath } from "node:url";
 import { stdin as input, stdout as output } from "node:process";
 
 const DEFAULT_BASE_URL = "https://familiar.chrsvdmrw.workers.dev";
@@ -418,6 +419,24 @@ function getThreadDisplay(state, fallbackThreadId) {
   }
 
   return "(auto)";
+}
+
+function applyThreadStateFromResponse(state, configThreadId, response) {
+  const nextThreadId = extractThreadId(response) || configThreadId;
+  const nextThreadName = extractThreadName(response) || state.threadName || null;
+  let stateChanged = false;
+
+  if (nextThreadId && nextThreadId !== state.threadId) {
+    state.threadId = nextThreadId;
+    stateChanged = true;
+  }
+
+  if (nextThreadName && nextThreadName !== state.threadName) {
+    state.threadName = nextThreadName;
+    stateChanged = true;
+  }
+
+  return stateChanged;
 }
 
 async function appendLogLine(filePath, line) {
@@ -867,21 +886,7 @@ async function sendMessage(config, state, message, tools) {
     }
   });
 
-  const nextThreadId = extractThreadId(response) || config.threadId;
-  const nextThreadName = extractThreadName(response) || state.threadName || null;
-  let stateChanged = false;
-
-  if (nextThreadId && nextThreadId !== state.threadId) {
-    state.threadId = nextThreadId;
-    stateChanged = true;
-  }
-
-  if (nextThreadName && nextThreadName !== state.threadName) {
-    state.threadName = nextThreadName;
-    stateChanged = true;
-  }
-
-  if (stateChanged) {
+  if (applyThreadStateFromResponse(state, config.threadId, response)) {
     await saveState(state);
   }
 
@@ -1278,11 +1283,24 @@ async function main() {
   }
 }
 
-main().catch((error) => {
-  if (error?.status) {
-    printApiError(error);
-  } else {
-    console.error(error.message);
-  }
-  process.exitCode = 1;
-});
+const isDirectExecution = process.argv[1]
+  ? path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)
+  : false;
+
+if (isDirectExecution) {
+  main().catch((error) => {
+    if (error?.status) {
+      printApiError(error);
+    } else {
+      console.error(error.message);
+    }
+    process.exitCode = 1;
+  });
+}
+
+export {
+  applyThreadStateFromResponse,
+  extractThreadId,
+  extractThreadName,
+  getThreadDisplay
+};

@@ -102,6 +102,12 @@ Sync tools from a JSON file:
 node ./bin/cli-chat.js sync-tools ./tools.example.json
 ```
 
+Run the current smoke tests:
+
+```bash
+npm test
+```
+
 Run the packaged portal runtime:
 
 ```bash
