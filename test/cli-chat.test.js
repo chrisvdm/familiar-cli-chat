@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 
 import {
   applyThreadStateFromResponse,
+  describeManagedProcess,
   extractThreadId,
   extractThreadName,
   getThreadDisplay,
@@ -171,6 +172,60 @@ test("planDiscordListenerStartup starts only when enabled and configured", () =>
     }),
     {
       action: "start"
+    }
+  );
+});
+
+test("describeManagedProcess returns a stable empty shape without a child", () => {
+  assert.deepEqual(
+    describeManagedProcess(null, "/tmp/test.log"),
+    {
+      kind: null,
+      pid: null,
+      running: false,
+      log: "/tmp/test.log"
+    }
+  );
+});
+
+test("describeManagedProcess reports pid and running state for a live child", () => {
+  assert.deepEqual(
+    describeManagedProcess(
+      {
+        kind: "runtime",
+        process: {
+          pid: 1234,
+          exitCode: null
+        }
+      },
+      "/tmp/runtime.log"
+    ),
+    {
+      kind: "runtime",
+      pid: 1234,
+      running: true,
+      log: "/tmp/runtime.log"
+    }
+  );
+});
+
+test("describeManagedProcess reports a stopped child when exitCode is set", () => {
+  assert.deepEqual(
+    describeManagedProcess(
+      {
+        kind: "discord-listener",
+        process: {
+          pid: 4567,
+          exitCode: 1
+        }
+      },
+      "/tmp/discord.log"
+    ),
+    {
+      kind: "discord-listener",
+      pid: 4567,
+      running: false,
+      log: "/tmp/discord.log"
     }
   );
 });

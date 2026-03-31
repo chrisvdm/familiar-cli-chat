@@ -102,6 +102,8 @@ The current automated coverage includes CLI thread-state helpers and the portal 
 
 The status payload also reports whether Discord listener auto-start will run, skip because it is disabled, or skip because `DISCORD_BOT_TOKEN` is not configured.
 
+Managed process details in `status` are also covered by the current smoke tests so the local debugging surface does not drift silently.
+
 Sync tools from a JSON file:
 
 ```bash

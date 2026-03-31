@@ -1344,6 +1344,7 @@ if (isDirectExecution) {
 
 export {
   applyThreadStateFromResponse,
+  describeManagedProcess,
   extractThreadId,
   extractThreadName,
   getThreadDisplay,
