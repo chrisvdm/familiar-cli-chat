@@ -302,6 +302,7 @@ Inside `chat` mode:
 - Familiar receives normalized text at `POST /api/v1/conversation/input`
 - This CLI sends text input plus local channel identity
 - Familiar may return a `thread_id`, which is stored locally for continuity
+- When a saved local thread id has no saved name, the CLI attempts a best-effort thread metadata lookup to hydrate the display name
 - `POST /api/v1/input` is treated as a backwards-compatibility alias
 - Replies are rendered as assistant-facing plain text by default
 

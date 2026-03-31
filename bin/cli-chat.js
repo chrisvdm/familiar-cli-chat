@@ -914,6 +914,37 @@ async function commandInitAccount(state) {
   console.log(JSON.stringify(response, null, 2));
 }
 
+async function fetchThreadMetadata(config, threadId) {
+  if (!threadId) {
+    return null;
+  }
+
+  try {
+    return await request(config, `/api/v1/threads/${encodeURIComponent(threadId)}`);
+  } catch (error) {
+    if (error?.status === 404) {
+      return null;
+    }
+    throw error;
+  }
+}
+
+async function hydrateThreadName(config, state, threadId) {
+  if (!config.apiToken || !threadId || state.threadName) {
+    return state.threadName || null;
+  }
+
+  const metadata = await fetchThreadMetadata(config, threadId);
+  const nextThreadName = extractThreadName(metadata);
+
+  if (nextThreadName && nextThreadName !== state.threadName) {
+    state.threadName = nextThreadName;
+    await saveState(state);
+  }
+
+  return state.threadName || null;
+}
+
 async function ensureAuthenticated(config, state, { interactive = false } = {}) {
   if (config.apiToken) {
     return config;
@@ -1026,6 +1057,7 @@ async function buildStatus(config, state, { portalHandle = null, discordListener
 }
 
 async function commandStatus(config, state, options = {}) {
+  await hydrateThreadName(config, state, state.threadId || config.threadId || null);
   const status = await buildStatus(config, state, options);
   console.log(JSON.stringify(status, null, 2));
 }
@@ -1061,6 +1093,7 @@ async function commandThread(config, state, rest) {
       }
       state.threadId = threadId;
       delete state.threadName;
+      await hydrateThreadName(config, state, threadId);
       await saveState(state);
       console.log(`Active thread set to ${threadId}`);
       return;
@@ -1079,6 +1112,7 @@ async function commandThread(config, state, rest) {
 
 async function commandChat(config, state) {
   const authenticatedConfig = await ensureAuthenticated(config, state, { interactive: true });
+  await hydrateThreadName(authenticatedConfig, state, state.threadId || authenticatedConfig.threadId || null);
   let portalHandle = null;
   let discordListenerHandle = null;
   const rl = readline.createInterface({ input, output });
