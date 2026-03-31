@@ -162,6 +162,89 @@ If you want Familiar to naturally handle prompts like "send this to Discord", `s
 
 Under the hood, Familiar still talks to a tool executor contract. In this repo, the developer-facing product surface for that local runtime is called the portal.
 
+## Discord Setup
+
+There are two supported Discord delivery paths:
+
+1. Default Discord message
+- Tool: `send_discord_message`
+- Uses: `DISCORD_WEBHOOK_URL`
+- Best for: the simplest "send this to Discord" experience
+
+2. Channel message
+- Tool: `send_discord_channel_message`
+- Uses: `DISCORD_BOT_TOKEN` plus a Discord `channel_id`
+- Best for: explicit bot-authored messages to a known channel
+
+### Easiest Path: Webhook
+
+If you just want to try the integration quickly, use a Discord channel webhook.
+
+Setup:
+1. In Discord, open the target channel settings.
+2. Create a webhook for that channel.
+3. Copy the full webhook URL.
+4. Put it in [`.env`](/Users/chris/Dev/cli-chat/.env) as:
+
+```bash
+DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/...
+```
+
+### Bot Path
+
+If you want to send normal bot-authored channel messages instead of webhook messages:
+
+1. Create a Discord bot in the Discord developer portal.
+2. Invite it to your server.
+3. Copy the bot token into [`.env`](/Users/chris/Dev/cli-chat/.env):
+
+```bash
+DISCORD_BOT_TOKEN=...
+```
+
+4. Copy the target Discord channel id.
+5. Use the `send_discord_channel_message` tool path.
+
+### End-To-End Familiar Test
+
+For the full hosted Familiar flow:
+
+1. Configure your Discord env vars in [`.env`](/Users/chris/Dev/cli-chat/.env)
+2. Start the packaged portal runtime:
+
+```bash
+npm run portal
+```
+
+That command:
+- starts the local portal server
+- opens a Cloudflare quick tunnel
+- updates Familiar's integration `base_url` automatically
+
+3. In another terminal, start chat:
+
+```bash
+npm start -- chat
+```
+
+4. Sync tools if you have changed [tools.example.json](/Users/chris/Dev/cli-chat/tools.example.json):
+
+```bash
+node ./bin/cli-chat.js sync-tools ./tools.example.json
+```
+
+5. Try a natural-language prompt:
+
+```text
+send this to discord: hello from familiar
+```
+
+### Notes
+
+- Quick Cloudflare tunnels are temporary. If the tunnel restarts, the public URL changes.
+- `npm run portal` updates Familiar automatically, so prefer that over starting the server and tunnel manually.
+- Discord webhook URLs and bot tokens are secrets. Keep them in [`.env`](/Users/chris/Dev/cli-chat/.env), never commit them, and rotate them if exposed.
+
 ## Interactive Commands
 
 Inside `chat` mode:
