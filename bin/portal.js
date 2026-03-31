@@ -8,7 +8,6 @@ import path from "node:path";
 import process from "node:process";
 
 const DEFAULT_PORT = 8788;
-const DISCORD_API_BASE_URL = "https://discord.com/api/v10";
 const ENV_FILES = [".env", "dev.vars"];
 const execFileAsync = promisify(execFile);
 const PORTAL_LOG_DIR = path.join(process.cwd(), ".cli-chat");
@@ -99,8 +98,6 @@ async function executeTool(payload) {
       return {
         summary: String(args.text || "")
       };
-    case "send_discord_channel_message":
-      return sendDiscordChannelMessage(args);
     case "send_discord_message":
       return sendDiscordDefaultWebhookMessage(args);
     case "send_discord_webhook_message":
@@ -111,40 +108,6 @@ async function executeTool(payload) {
       throw error;
     }
   }
-}
-
-async function sendDiscordChannelMessage(args) {
-  const channelId = String(args.channel_id || "").trim();
-  const message = String(args.message || "").trim();
-  const botToken = String(process.env.DISCORD_BOT_TOKEN || "").trim();
-
-  if (!botToken) {
-    const error = new Error("Missing DISCORD_BOT_TOKEN.");
-    error.statusCode = 500;
-    throw error;
-  }
-
-  if (!channelId) {
-    const error = new Error("Missing channel_id.");
-    error.statusCode = 400;
-    throw error;
-  }
-
-  if (!message) {
-    const error = new Error("Missing message.");
-    error.statusCode = 400;
-    throw error;
-  }
-
-  const sentMessage = await discordRequest(`/channels/${channelId}/messages`, botToken, {
-    content: message
-  });
-
-  return {
-    summary: `Sent Discord message to channel ${channelId}.`,
-    discord_channel_id: channelId,
-    discord_message_id: sentMessage.id
-  };
 }
 
 async function sendDiscordWebhookMessage(args) {
@@ -199,47 +162,6 @@ async function sendDiscordDefaultWebhookMessage(args) {
     discord_channel_id: sentMessage.channel_id,
     discord_message_id: sentMessage.id
   };
-}
-
-async function discordRequest(pathname, botToken, body) {
-  const url = new URL(pathname, DISCORD_API_BASE_URL).toString();
-  const { stdout } = await execFileAsync("curl", [
-    "-sS",
-    "-X",
-    "POST",
-    url,
-    "-H",
-    `Authorization: Bot ${botToken}`,
-    "-H",
-    "Accept: application/json",
-    "-H",
-    "Content-Type: application/json",
-    "-d",
-    JSON.stringify(body),
-    "-w",
-    "\n%{http_code}"
-  ]);
-
-  const lastNewline = stdout.lastIndexOf("\n");
-  const text = lastNewline >= 0 ? stdout.slice(0, lastNewline) : stdout;
-  const statusCode = Number(lastNewline >= 0 ? stdout.slice(lastNewline + 1).trim() : "0");
-  const data = safeParseJson(text);
-  const ok = statusCode >= 200 && statusCode < 300;
-
-  if (!ok) {
-    const details = data ? JSON.stringify(data) : text;
-    const error = new Error(`Discord API error ${statusCode}: ${details}`);
-    error.statusCode = statusCode || 502;
-    throw error;
-  }
-
-  if (!data || typeof data !== "object") {
-    const error = new Error(`Discord API returned an empty or non-JSON success response for ${pathname}.`);
-    error.statusCode = 502;
-    throw error;
-  }
-
-  return data;
 }
 
 async function webhookRequest(webhookUrl, body) {

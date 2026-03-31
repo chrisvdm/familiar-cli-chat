@@ -7,7 +7,7 @@ It gives you a simple command-line chat interface that:
 - keeps local conversation continuity
 - bootstraps a Familiar account automatically on first run
 - exposes basic account, thread, and tool-sync commands
-- includes a sample local portal with Discord tools
+- includes a sample local portal with a Discord delivery tool
 
 ## Why This Exists
 
@@ -30,7 +30,7 @@ It is not:
 - Automatic account creation if no token is configured
 - Local persistence for channel and thread continuity
 - Tool syncing from JSON definitions
-- Sample Discord channel/DM tools and local portal
+- Sample Discord tool and local portal
 - Minimal footprint with no runtime dependencies beyond Node 22
 
 ## Quickstart
@@ -121,7 +121,6 @@ FAMILIAR_THREAD_ID
 FAMILIAR_TOOLS_FILE
 AUTO_START_PORTAL
 EXECUTOR_PORT
-DISCORD_BOT_TOKEN
 DISCORD_WEBHOOK_URL
 CLOUDFLARED_BIN
 ```
@@ -138,15 +137,10 @@ Already-set shell variables win over file-based values.
 The repo ships with sample Discord tools in [tools.example.json](/Users/chris/Dev/cli-chat/tools.example.json):
 
 - `send_discord_message`
-- `send_discord_channel_message`
 
 `send_discord_message` expects:
 - `message` text only
 - uses `DISCORD_WEBHOOK_URL` from the local portal environment
-
-`send_discord_channel_message` expects:
-- `channel_id`: a Discord channel id
-- `message`: the text to post
 
 The matching sample portal server lives at [bin/portal.js](/Users/chris/Dev/cli-chat/bin/portal.js) and exposes:
 - `POST /tools/execute`
@@ -156,7 +150,7 @@ The packaged runtime lives at [bin/portal-runtime.js](/Users/chris/Dev/cli-chat/
 
 When you run `npm start -- chat`, the CLI starts the local portal server automatically unless `AUTO_START_PORTAL=false`.
 
-If you want a reliable first integration test, prefer `send_discord_message` or `send_discord_channel_message`.
+If you want a reliable first integration test, prefer `send_discord_message`.
 
 If you want Familiar to naturally handle prompts like "send this to Discord", `send_discord_message` is the easiest tool for it to choose because it only needs the message text.
 
@@ -164,19 +158,13 @@ Under the hood, Familiar still talks to a tool executor contract. In this repo, 
 
 ## Discord Setup
 
-There are two supported Discord delivery paths:
+The supported Discord delivery path is webhook-backed:
 
-1. Default Discord message
 - Tool: `send_discord_message`
 - Uses: `DISCORD_WEBHOOK_URL`
 - Best for: the simplest "send this to Discord" experience
 
-2. Channel message
-- Tool: `send_discord_channel_message`
-- Uses: `DISCORD_BOT_TOKEN` plus a Discord `channel_id`
-- Best for: explicit bot-authored messages to a known channel
-
-### Easiest Path: Webhook
+### Setup
 
 If you just want to try the integration quickly, use a Discord channel webhook.
 
@@ -189,21 +177,6 @@ Setup:
 ```bash
 DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/...
 ```
-
-### Bot Path
-
-If you want to send normal bot-authored channel messages instead of webhook messages:
-
-1. Create a Discord bot in the Discord developer portal.
-2. Invite it to your server.
-3. Copy the bot token into [`.env`](/Users/chris/Dev/cli-chat/.env):
-
-```bash
-DISCORD_BOT_TOKEN=...
-```
-
-4. Copy the target Discord channel id.
-5. Use the `send_discord_channel_message` tool path.
 
 ### End-To-End Familiar Test
 
@@ -243,7 +216,7 @@ send this to discord: hello from familiar
 
 - Quick Cloudflare tunnels are temporary. If the tunnel restarts, the public URL changes.
 - `npm run portal` updates Familiar automatically, so prefer that over starting the server and tunnel manually.
-- Discord webhook URLs and bot tokens are secrets. Keep them in [`.env`](/Users/chris/Dev/cli-chat/.env), never commit them, and rotate them if exposed.
+- Discord webhook URLs are secrets. Keep them in [`.env`](/Users/chris/Dev/cli-chat/.env), never commit them, and rotate them if exposed.
 
 ## Interactive Commands
 

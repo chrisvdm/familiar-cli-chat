@@ -41,7 +41,7 @@ So the distinction is:
 ## Current Tool Support
 
 - `echo_back`
-- `send_discord_channel_message`
+- `send_discord_message`
 - `send_discord_webhook_message`
 
 ## Future Direction
