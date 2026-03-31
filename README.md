@@ -231,9 +231,10 @@ Inside `chat` mode:
 
 ## How It Works
 
-- Familiar receives normalized text at `POST /api/v1/input`
+- Familiar receives normalized text at `POST /api/v1/conversation/input`
 - This CLI sends text input plus local channel identity
 - Familiar may return a `thread_id`, which is stored locally for continuity
+- `POST /api/v1/input` is treated as a backwards-compatibility alias
 - Replies are rendered as assistant-facing plain text by default
 
 Local state lives in `.cli-chat/session.json`.

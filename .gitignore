@@ -3,3 +3,4 @@
 dev.vars
 .cli-chat/
 node_modules/
+docs/internal/

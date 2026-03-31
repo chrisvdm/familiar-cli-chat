@@ -8,7 +8,9 @@ It exists to make Familiar tools feel like part of one local product instead of 
 
 - exposes a local HTTP surface for tool execution
 - receives Familiar tool calls at `POST /tools/execute`
+- receives Familiar channel deliveries at `POST /channels/messages`
 - runs tool-specific logic locally
+- stores channel deliveries locally for the CLI to display
 - returns blocking results back to Familiar
 
 ## What Portal Is Not
@@ -37,6 +39,7 @@ So the distinction is:
 
 - `GET /health`
 - `POST /tools/execute`
+- `POST /channels/messages`
 
 ## Current Tool Support
 

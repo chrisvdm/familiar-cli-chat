@@ -44,7 +44,7 @@ At a high level, the project has three layers:
 ### Normal chat
 
 - User types a message in interactive mode
-- The CLI sends `input.kind = "text"` and `input.text` to `/api/v1/input`
+- The CLI sends `input.kind = "text"` and `input.text` to `/api/v1/conversation/input`
 - The current local channel id is reused for continuity
 - If Familiar returns a `thread_id`, the CLI stores it for later turns
 - The terminal prints the assistant-facing content, not the full JSON envelope

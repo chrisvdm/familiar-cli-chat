@@ -19,7 +19,7 @@
     }
   },
   {
-    "tool_name": "send_discord_message",
+    "tool_name": "discord",
     "description": "Send a message to the default Discord destination configured in the portal. Use this when the user asks to send something to Discord and no explicit webhook URL is needed.",
     "status": "active",
     "input_mode": "raw",

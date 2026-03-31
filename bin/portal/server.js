@@ -12,6 +12,7 @@ const ENV_FILES = [".env", "dev.vars"];
 const execFileAsync = promisify(execFile);
 const PORTAL_LOG_DIR = path.join(process.cwd(), ".cli-chat");
 const PORTAL_LOG_FILE = path.join(PORTAL_LOG_DIR, "portal.log");
+const CHANNEL_MESSAGES_FILE = path.join(PORTAL_LOG_DIR, "channel-messages.json");
 
 await loadEnvFiles();
 
@@ -25,6 +26,19 @@ const server = http.createServer(async (request, response) => {
         ok: true,
         service: "portal"
       });
+    }
+
+    if (request.method === "POST" && request.url === "/channels/messages") {
+      const payload = await readJsonBody(request);
+      await logPortalEvent("channel-message-request", payload);
+      const result = await storeChannelMessage(payload);
+      const successBody = {
+        ok: true,
+        state: "completed",
+        result
+      };
+      await logPortalEvent("channel-message-response", successBody);
+      return sendJson(response, 200, successBody);
     }
 
     if (request.method !== "POST" || request.url !== "/tools/execute") {
@@ -108,6 +122,45 @@ async function executeTool(payload) {
       throw error;
     }
   }
+}
+
+async function storeChannelMessage(payload) {
+  const channel = extractChannel(payload);
+  const content = extractMessageContent(payload);
+  const threadId = extractThreadId(payload);
+
+  if (!channel.id || !channel.type) {
+    const error = new Error("Missing channel.id or channel.type.");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (!content) {
+    const error = new Error("Missing channel message content.");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const messages = await readChannelMessages();
+  const entry = {
+    id: extractDeliveryId(payload),
+    thread_id: threadId,
+    channel,
+    content,
+    received_at: new Date().toISOString(),
+    payload
+  };
+
+  messages.push(entry);
+  await writeChannelMessages(messages.slice(-500));
+
+  return {
+    summary: "Stored channel message.",
+    channel_type: channel.type,
+    channel_id: channel.id,
+    thread_id: threadId || null,
+    message_id: entry.id
+  };
 }
 
 async function sendDiscordWebhookMessage(args) {
@@ -211,6 +264,93 @@ function safeParseJson(text) {
   } catch {
     return null;
   }
+}
+
+function extractChannel(payload) {
+  const directChannel = payload?.channel;
+  if (directChannel && typeof directChannel === "object") {
+    return {
+      type: String(directChannel.type || "").trim(),
+      id: String(directChannel.id || "").trim()
+    };
+  }
+
+  return {
+    type: String(payload?.channel_type || "").trim(),
+    id: String(payload?.channel_id || "").trim()
+  };
+}
+
+function extractThreadId(payload) {
+  const candidates = [
+    payload?.thread_id,
+    payload?.thread?.id,
+    payload?.message?.thread_id
+  ];
+
+  for (const candidate of candidates) {
+    if (typeof candidate === "string" && candidate.trim()) {
+      return candidate.trim();
+    }
+  }
+
+  return null;
+}
+
+function extractDeliveryId(payload) {
+  const candidates = [
+    payload?.message_id,
+    payload?.delivery_id,
+    payload?.id,
+    payload?.message?.id,
+    payload?.result?.execution_id
+  ];
+
+  for (const candidate of candidates) {
+    if (typeof candidate === "string" && candidate.trim()) {
+      return candidate.trim();
+    }
+  }
+
+  return `msg_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function extractMessageContent(payload) {
+  const candidates = [
+    payload?.content,
+    payload?.text,
+    payload?.message,
+    payload?.message?.content,
+    payload?.message?.text,
+    payload?.result?.content,
+    payload?.response?.content
+  ];
+
+  for (const candidate of candidates) {
+    if (typeof candidate === "string" && candidate.trim()) {
+      return candidate.trim();
+    }
+  }
+
+  return "";
+}
+
+async function readChannelMessages() {
+  try {
+    const raw = await fs.readFile(CHANNEL_MESSAGES_FILE, "utf8");
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (error) {
+    if (error.code === "ENOENT") {
+      return [];
+    }
+    throw error;
+  }
+}
+
+async function writeChannelMessages(messages) {
+  await fs.mkdir(PORTAL_LOG_DIR, { recursive: true });
+  await fs.writeFile(CHANNEL_MESSAGES_FILE, `${JSON.stringify(messages, null, 2)}\n`, "utf8");
 }
 
 async function loadEnvFiles() {

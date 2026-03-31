@@ -26,7 +26,7 @@ Decision:
 - Treat Familiar as a remote service, not a local SDK.
 
 Why:
-- The Familiar docs define the product around HTTP endpoints such as `/api/v1/input`, `/api/v1/tools/sync`, `/api/v1/account`, and `/api/v1/accounts`.
+- The Familiar docs define the product around HTTP endpoints such as `/api/v1/conversation/input`, `/api/v1/tools/sync`, `/api/v1/account`, and `/api/v1/accounts`.
 - Building against the actual HTTP contract avoids inventing a client model that may not match the service.
 
 Implications:
@@ -35,6 +35,22 @@ Implications:
 
 Tradeoff:
 - Response formatting needs to tolerate shape changes and richer payload envelopes.
+
+## 2026-03-31: Use the canonical conversation input route
+
+Decision:
+- Send user text to `/api/v1/conversation/input` and treat `/api/v1/input` as a compatibility alias only.
+
+Why:
+- The current Familiar codebase exposes `POST /api/v1/conversation/input` as the canonical route.
+- `POST /api/v1/input` still exists for backwards compatibility, but new code should align with the primary API surface.
+
+Implications:
+- The CLI and future portal forwarding logic should target the conversation-prefixed route.
+- Docs should mention `/api/v1/input` only as an alias, not as the primary contract.
+
+Tradeoff:
+- Older examples may still reference `/api/v1/input`, so internal notes need to stay explicit about the alias during the transition.
 
 ## 2026-03-30: Persist local session state in `.cli-chat/session.json`
 

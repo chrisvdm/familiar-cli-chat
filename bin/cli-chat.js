@@ -13,6 +13,7 @@ const DEFAULT_EXECUTOR_HOST = "127.0.0.1";
 const DEFAULT_EXECUTOR_PORT = 8788;
 const STATE_DIR = path.join(process.cwd(), ".cli-chat");
 const STATE_FILE = path.join(STATE_DIR, "session.json");
+const CHANNEL_MESSAGES_FILE = path.join(STATE_DIR, "channel-messages.json");
 const ENV_FILES = [".env", "dev.vars"];
 const DEFAULT_ENV_FILE = ".env";
 
@@ -82,6 +83,10 @@ async function loadState() {
 
 async function saveState(nextState) {
   await writeJson(STATE_FILE, nextState);
+}
+
+async function readChannelMessages() {
+  return readJson(CHANNEL_MESSAGES_FILE, []);
 }
 
 async function loadEnvFiles() {
@@ -330,6 +335,82 @@ function formatPayload(payload) {
   return JSON.stringify(payload, null, 2);
 }
 
+function collectUnreadChannelMessages(messages, channel, seenIds) {
+  const unread = [];
+
+  for (const entry of messages) {
+    if (!entry || typeof entry !== "object") {
+      continue;
+    }
+
+    const entryChannel = entry.channel || {};
+    if (entryChannel.type !== channel.type || entryChannel.id !== channel.id) {
+      continue;
+    }
+
+    if (!entry.id || seenIds.has(entry.id)) {
+      continue;
+    }
+
+    seenIds.add(entry.id);
+    unread.push(entry);
+  }
+
+  return unread;
+}
+
+function renderChannelMessage(entry) {
+  const threadSuffix = entry.thread_id ? ` thread ${entry.thread_id}` : "";
+  return `[portal${threadSuffix}] ${entry.content}`;
+}
+
+function startChannelInboxWatcher(channel) {
+  const seenIds = new Set();
+  let disposed = false;
+  let polling = false;
+
+  const poll = async () => {
+    if (disposed || polling) {
+      return;
+    }
+
+    polling = true;
+
+    try {
+      const messages = await readChannelMessages();
+      const unread = collectUnreadChannelMessages(messages, channel, seenIds);
+
+      for (const entry of unread) {
+        output.write(`\n${renderChannelMessage(entry)}\n> `);
+      }
+    } catch (error) {
+      output.write(`\n[portal] Failed to read channel inbox: ${error.message}\n> `);
+    } finally {
+      polling = false;
+    }
+  };
+
+  const prime = async () => {
+    const messages = await readChannelMessages();
+    collectUnreadChannelMessages(messages, channel, seenIds);
+  };
+
+  const interval = setInterval(() => {
+    void poll();
+  }, 1000);
+  interval.unref();
+
+  const stop = () => {
+    disposed = true;
+    clearInterval(interval);
+  };
+
+  return {
+    prime,
+    stop
+  };
+}
+
 function printApiError(error) {
   console.error(error.message);
   if (error.payload) {
@@ -402,7 +483,7 @@ async function loadToolsFile(filePath) {
 
 async function sendMessage(config, state, message, tools) {
   const payload = buildInputPayload(config, message, config.threadId, tools);
-  const response = await request(config, "/api/v1/input", {
+  const response = await request(config, "/api/v1/conversation/input", {
     method: "POST",
     body: payload,
     headers: {
@@ -570,6 +651,10 @@ async function commandChat(config, state) {
   const authenticatedConfig = await ensureAuthenticated(config, state, { interactive: true });
   const portalProcess = await ensurePortalRunning(getPortalConfig());
   const rl = readline.createInterface({ input, output });
+  const inboxWatcher = startChannelInboxWatcher({
+    type: authenticatedConfig.channelType,
+    id: authenticatedConfig.channelId
+  });
 
   const cleanupPortal = () => {
     if (portalProcess && portalProcess.exitCode === null) {
@@ -586,6 +671,8 @@ async function commandChat(config, state) {
   console.log("Commands: /new, /thread, /clear, /whoami, /exit");
 
   try {
+    await inboxWatcher.prime();
+
     while (true) {
       const line = (await rl.question("> ")).trim();
       if (!line) {
@@ -642,6 +729,7 @@ async function commandChat(config, state) {
   } finally {
     process.removeListener("SIGINT", cleanupPortal);
     process.removeListener("SIGTERM", cleanupPortal);
+    inboxWatcher.stop();
     cleanupPortal();
     rl.close();
   }
