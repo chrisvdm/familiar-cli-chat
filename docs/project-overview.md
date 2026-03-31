@@ -8,7 +8,7 @@ Its job is narrow by design:
 - provide a usable interactive shell for chatting
 - expose a few setup and inspection commands around Familiar accounts, threads, and tool sync
 
-It is not intended to replace Familiar itself, and it is not an executor runtime.
+It is not intended to replace Familiar itself, and it is not a replacement for Familiar's executor contract.
 
 ## Product Shape
 
@@ -27,6 +27,10 @@ At a high level, the project has three layers:
 - Makes direct HTTP requests to the Familiar hosted API
 - Formats replies for terminal display
 - Keeps the request layer thin so the wire contract stays obvious
+
+4. Portal runtime
+- Exposes the local tool runtime used during development
+- Implements Familiar's executor contract behind the local product name `portal`
 
 ## Main User Flows
 
@@ -49,7 +53,7 @@ At a high level, the project has three layers:
 
 - User syncs tool definitions from a JSON file via `sync-tools`
 - Familiar stores those tools for the current token-backed setup
-- Tool execution itself remains external to this project
+- The local portal can provide a tool runtime for development, but real tool behavior still lives behind Familiar's executor contract
 
 ## Current Commands
 
@@ -82,6 +86,7 @@ The cost is that some conveniences, like env parsing and output formatting, are 
 
 ## Where To Look Next
 
+- Portal overview: [docs/portal.md](/Users/chris/Dev/cli-chat/docs/portal.md)
 - Behavioral decisions: [docs/decisions.md](/Users/chris/Dev/cli-chat/docs/decisions.md)
 - Implementation history and debugging notes: [docs/worklogs/2026-03-30-initial-cli-and-auth-bootstrap.md](/Users/chris/Dev/cli-chat/docs/worklogs/2026-03-30-initial-cli-and-auth-bootstrap.md)
 - Entrypoint and core behavior: [bin/cli-chat.js](/Users/chris/Dev/cli-chat/bin/cli-chat.js)

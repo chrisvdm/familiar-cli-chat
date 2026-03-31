@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { randomUUID } from "node:crypto";
+import { spawn } from "node:child_process";
 import fs from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
@@ -8,6 +9,8 @@ import readline from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 
 const DEFAULT_BASE_URL = "https://familiar.chrsvdmrw.workers.dev";
+const DEFAULT_EXECUTOR_HOST = "127.0.0.1";
+const DEFAULT_EXECUTOR_PORT = 8788;
 const STATE_DIR = path.join(process.cwd(), ".cli-chat");
 const STATE_FILE = path.join(STATE_DIR, "session.json");
 const ENV_FILES = [".env", "dev.vars"];
@@ -34,6 +37,9 @@ Environment:
   FAMILIAR_CHANNEL_ID       Optional, defaults to a persisted local UUID
   FAMILIAR_THREAD_ID        Optional override for the active thread
   FAMILIAR_TOOLS_FILE       Optional default tools file for sync-tools
+  AUTO_START_PORTAL         Optional, defaults to "true" for chat
+  AUTO_START_EXECUTOR       Legacy alias for AUTO_START_PORTAL
+  EXECUTOR_PORT             Optional, defaults to ${DEFAULT_EXECUTOR_PORT}
 `);
 }
 
@@ -173,6 +179,16 @@ function getConfig(state) {
     channelType: process.env.FAMILIAR_CHANNEL_TYPE || "cli",
     channelId: process.env.FAMILIAR_CHANNEL_ID || state.channelId,
     threadId: process.env.FAMILIAR_THREAD_ID || state.threadId || null
+  };
+}
+
+function getPortalConfig() {
+  return {
+    enabled: !["0", "false", "no"].includes(String(
+      process.env.AUTO_START_PORTAL || process.env.AUTO_START_EXECUTOR || "true"
+    ).toLowerCase()),
+    host: DEFAULT_EXECUTOR_HOST,
+    port: Number(process.env.EXECUTOR_PORT || DEFAULT_EXECUTOR_PORT)
   };
 }
 
@@ -323,6 +339,54 @@ function printApiError(error) {
       console.error(JSON.stringify(error.payload, null, 2));
     }
   }
+}
+
+async function isExecutorHealthy({ host, port }) {
+  try {
+    const response = await fetch(`http://${host}:${port}/health`);
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
+async function ensurePortalRunning(portalConfig) {
+  if (!portalConfig.enabled) {
+    return null;
+  }
+
+  if (await isExecutorHealthy(portalConfig)) {
+    console.log(`Using existing portal on http://${portalConfig.host}:${portalConfig.port}`);
+    return null;
+  }
+
+  const child = spawn(process.execPath, ["./bin/portal.js"], {
+    cwd: process.cwd(),
+    env: process.env,
+    stdio: ["ignore", "inherit", "inherit"]
+  });
+
+  const waitForReady = async () => {
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      if (child.exitCode !== null) {
+        throw new Error("Portal exited before becoming ready.");
+      }
+
+      if (await isExecutorHealthy(portalConfig)) {
+        return;
+      }
+
+      await new Promise((resolve) => {
+        setTimeout(resolve, 150);
+      });
+    }
+
+    throw new Error("Timed out waiting for portal to become ready.");
+  };
+
+  await waitForReady();
+  console.log(`Started portal on http://${portalConfig.host}:${portalConfig.port}`);
+  return child;
 }
 
 async function loadToolsFile(filePath) {
@@ -504,7 +568,17 @@ async function commandThread(config, state, rest) {
 
 async function commandChat(config, state) {
   const authenticatedConfig = await ensureAuthenticated(config, state, { interactive: true });
+  const portalProcess = await ensurePortalRunning(getPortalConfig());
   const rl = readline.createInterface({ input, output });
+
+  const cleanupPortal = () => {
+    if (portalProcess && portalProcess.exitCode === null) {
+      portalProcess.kill("SIGINT");
+    }
+  };
+
+  process.once("SIGINT", cleanupPortal);
+  process.once("SIGTERM", cleanupPortal);
 
   console.log(`Connected to ${authenticatedConfig.baseUrl}`);
   console.log(`Channel: ${authenticatedConfig.channelType}:${authenticatedConfig.channelId}`);
@@ -566,6 +640,9 @@ async function commandChat(config, state) {
       console.log(`\n${formatPayload(response)}\n`);
     }
   } finally {
+    process.removeListener("SIGINT", cleanupPortal);
+    process.removeListener("SIGTERM", cleanupPortal);
+    cleanupPortal();
     rl.close();
   }
 }

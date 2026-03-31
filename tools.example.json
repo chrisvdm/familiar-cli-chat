@@ -17,5 +17,47 @@
       ],
       "additionalProperties": false
     }
+  },
+  {
+    "tool_name": "send_discord_message",
+    "description": "Send a message to the default Discord destination configured in the portal. Use this when the user asks to send something to Discord and no explicit webhook URL is needed.",
+    "status": "active",
+    "input_mode": "raw",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "text": {
+          "type": "string",
+          "description": "The Discord message text to send."
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "tool_name": "send_discord_channel_message",
+    "description": "Send a Discord message to a specific channel id.",
+    "status": "active",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "channel_id": {
+          "type": "string",
+          "description": "The Discord channel id to send the message to."
+        },
+        "message": {
+          "type": "string",
+          "description": "The message content to send."
+        }
+      },
+      "required": [
+        "channel_id",
+        "message"
+      ],
+      "additionalProperties": false
+    }
   }
 ]

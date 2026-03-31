@@ -4,11 +4,15 @@
   "description": "Local Node.js CLI chat client for the Familiar API",
   "type": "module",
   "bin": {
-    "cli-chat": "./bin/cli-chat.js"
+    "cli-chat": "./bin/cli-chat.js",
+    "portal-runtime": "./bin/portal-runtime.js"
   },
   "scripts": {
     "start": "node ./bin/cli-chat.js",
-    "check": "node --check ./bin/cli-chat.js"
+    "portal": "node ./bin/portal-runtime.js",
+    "portal:server": "node ./bin/portal.js",
+    "executor": "node ./bin/portal.js",
+    "check": "node --check ./bin/cli-chat.js && node --check ./bin/portal.js && node --check ./bin/portal-runtime.js"
   },
   "engines": {
     "node": ">=22.0.0"

@@ -122,10 +122,10 @@ Takeaway:
 - The env loader is intentionally simple and may not handle all edge cases from more complex dotenv files.
 - There is no dedicated verbose/debug mode for printing raw Familiar envelopes.
 - Multi-account or profile management does not exist yet.
-- The CLI does not yet include a local executor stub or end-to-end tool execution workflow.
+- The CLI does not yet include a local portal or end-to-end tool execution workflow.
 
 ## Recommendations For Future Changes
 
 - If output formatting changes, keep a plain-text default and add debug output behind a flag.
 - If auth grows more complex, move token/profile logic into a dedicated config module.
-- If tool execution is added, document the executor protocol separately rather than expanding this worklog indefinitely.
+- If tool execution is added, document the portal behavior and executor contract separately rather than expanding this worklog indefinitely.
