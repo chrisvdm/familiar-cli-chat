@@ -66,6 +66,8 @@ Auto-started background process logs are written to:
 
 Set `CLI_CHAT_VERBOSE_STARTUP=true` if you want those child-process logs mirrored into the terminal during chat startup.
 
+If portal or Discord auto-start fails during chat startup, the CLI now prints the relevant log file path and a short log tail to speed up local debugging.
+
 The repo includes [`.env.example`](/Users/chris/Dev/cli-chat/.env.example) as the public template. Keep your real [`.env`](/Users/chris/Dev/cli-chat/.env) local and untracked.
 
 ## Common Commands

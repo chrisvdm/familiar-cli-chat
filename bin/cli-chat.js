@@ -424,6 +424,26 @@ async function appendLogLine(filePath, line) {
   await fs.appendFile(filePath, `${line}\n`, "utf8");
 }
 
+async function readLogTail(filePath, maxLines = 10) {
+  try {
+    const raw = await fs.readFile(filePath, "utf8");
+    return raw.split(/\r?\n/).filter(Boolean).slice(-maxLines);
+  } catch (error) {
+    if (error.code === "ENOENT") {
+      return [];
+    }
+    throw error;
+  }
+}
+
+async function buildStartupError(message, logFile) {
+  const tail = await readLogTail(logFile);
+  const suffix = tail.length > 0
+    ? `\nLog tail from ${logFile}:\n${tail.join("\n")}`
+    : `\nSee ${logFile} for startup logs.`;
+  return new Error(`${message}\nLog file: ${logFile}${suffix}`);
+}
+
 function attachChildLogging(child, label, logFile, { mirrorToConsole = false } = {}) {
   const writeChunk = async (streamLabel, chunk) => {
     const text = chunk.toString("utf8");
@@ -469,6 +489,20 @@ function createManagedChild(scriptPath, logFile, label) {
 
   attachChildLogging(child, label, logFile, { mirrorToConsole: getVerboseStartup() });
   return child;
+}
+
+async function assertChildStillRunning(child, logFile, message) {
+  if (child.exitCode !== null) {
+    throw await buildStartupError(message, logFile);
+  }
+}
+
+async function ensureChildSurvivesStartup(child, logFile, message, delayMs = 500) {
+  await new Promise((resolve) => {
+    setTimeout(resolve, delayMs);
+  });
+
+  await assertChildStillRunning(child, logFile, message);
 }
 
 function startChannelInboxWatcher(channel) {
@@ -662,9 +696,7 @@ async function startPortalServer(portalConfig) {
   const child = createManagedChild("./bin/portal/server.js", PORTAL_SERVER_LOG_FILE, "portal-server");
 
   for (let attempt = 0; attempt < 20; attempt += 1) {
-    if (child.exitCode !== null) {
-      throw new Error("Portal exited before becoming ready.");
-    }
+    await assertChildStillRunning(child, PORTAL_SERVER_LOG_FILE, "Portal server exited before becoming ready.");
 
     if (await isExecutorHealthy(portalConfig)) {
       console.log(`Started portal on http://${portalConfig.host}:${portalConfig.port}`);
@@ -676,15 +708,27 @@ async function startPortalServer(portalConfig) {
     });
   }
 
-  throw new Error("Timed out waiting for portal to become ready.");
+  throw await buildStartupError("Timed out waiting for portal to become ready.", PORTAL_SERVER_LOG_FILE);
 }
 
 async function startPortalRuntime() {
-  return createManagedChild("./bin/portal/runtime.js", PORTAL_RUNTIME_LOG_FILE, "portal-runtime");
+  const child = createManagedChild("./bin/portal/runtime.js", PORTAL_RUNTIME_LOG_FILE, "portal-runtime");
+  await ensureChildSurvivesStartup(
+    child,
+    PORTAL_RUNTIME_LOG_FILE,
+    "Portal runtime exited during startup."
+  );
+  return child;
 }
 
 async function startDiscordListener() {
-  return createManagedChild("./bin/adapters/discord-gateway.js", DISCORD_LISTENER_LOG_FILE, "discord-listener");
+  const child = createManagedChild("./bin/adapters/discord-gateway.js", DISCORD_LISTENER_LOG_FILE, "discord-listener");
+  await ensureChildSurvivesStartup(
+    child,
+    DISCORD_LISTENER_LOG_FILE,
+    "Discord listener exited during startup."
+  );
+  return child;
 }
 
 async function waitForHostedPortalRoute(config, timeoutMs = 15000) {
@@ -700,6 +744,35 @@ async function waitForHostedPortalRoute(config, timeoutMs = 15000) {
       setTimeout(resolve, 500);
     });
   }
+
+  return checkHostedPortalRoute(config);
+}
+
+async function waitForHostedPortalRouteOrRuntimeExit(config, runtimeChild, timeoutMs = 15000) {
+  const startedAt = Date.now();
+
+  while (Date.now() - startedAt < timeoutMs) {
+    await assertChildStillRunning(
+      runtimeChild,
+      PORTAL_RUNTIME_LOG_FILE,
+      "Portal runtime exited before a public portal route became ready."
+    );
+
+    const route = await checkHostedPortalRoute(config);
+    if (route.ok) {
+      return route;
+    }
+
+    await new Promise((resolve) => {
+      setTimeout(resolve, 500);
+    });
+  }
+
+  await assertChildStillRunning(
+    runtimeChild,
+    PORTAL_RUNTIME_LOG_FILE,
+    "Portal runtime exited before a public portal route became ready."
+  );
 
   return checkHostedPortalRoute(config);
 }
@@ -720,7 +793,7 @@ async function ensurePortalRunning(config, portalConfig) {
       spinner.update("Starting portal runtime...");
       const runtimeChild = await startPortalRuntime();
       spinner.update("Waiting for public portal route...");
-      const route = await waitForHostedPortalRoute(config);
+      const route = await waitForHostedPortalRouteOrRuntimeExit(config, runtimeChild);
       spinner.stop();
       return {
         process: runtimeChild,
@@ -759,7 +832,7 @@ async function ensurePortalRunning(config, portalConfig) {
     spinner.update("Refreshing portal tunnel...");
     const runtimeChild = await startPortalRuntime();
     spinner.update("Waiting for public portal route...");
-    const nextRoute = await waitForHostedPortalRoute(config);
+    const nextRoute = await waitForHostedPortalRouteOrRuntimeExit(config, runtimeChild);
     spinner.stop();
     return {
       process: runtimeChild,
