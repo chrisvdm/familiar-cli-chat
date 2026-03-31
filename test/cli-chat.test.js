@@ -5,7 +5,8 @@ import {
   applyThreadStateFromResponse,
   extractThreadId,
   extractThreadName,
-  getThreadDisplay
+  getThreadDisplay,
+  planPortalStartup
 } from "../bin/cli-chat.js";
 
 test("extractThreadName finds nested thread names", () => {
@@ -77,4 +78,60 @@ test("applyThreadStateFromResponse preserves the current name when the response 
     threadId: "thread_123",
     threadName: "Existing Name"
   });
+});
+
+test("planPortalStartup always starts runtime in runtime mode", () => {
+  assert.deepEqual(
+    planPortalStartup("runtime", {
+      localHealthy: true,
+      hostedRouteOk: true
+    }),
+    { action: "start-runtime" }
+  );
+});
+
+test("planPortalStartup reuses or starts the local server in server mode", () => {
+  assert.deepEqual(
+    planPortalStartup("server", {
+      localHealthy: true,
+      hostedRouteOk: false
+    }),
+    { action: "reuse-local-server" }
+  );
+
+  assert.deepEqual(
+    planPortalStartup("server", {
+      localHealthy: false,
+      hostedRouteOk: false
+    }),
+    { action: "start-local-server" }
+  );
+});
+
+test("planPortalStartup promotes to runtime in auto mode when the hosted route is stale", () => {
+  assert.deepEqual(
+    planPortalStartup("auto", {
+      localHealthy: true,
+      hostedRouteOk: false
+    }),
+    { action: "start-runtime" }
+  );
+});
+
+test("planPortalStartup prefers the local server in auto mode when the hosted route is healthy", () => {
+  assert.deepEqual(
+    planPortalStartup("auto", {
+      localHealthy: true,
+      hostedRouteOk: true
+    }),
+    { action: "reuse-local-server" }
+  );
+
+  assert.deepEqual(
+    planPortalStartup("auto", {
+      localHealthy: false,
+      hostedRouteOk: true
+    }),
+    { action: "start-local-server" }
+  );
 });

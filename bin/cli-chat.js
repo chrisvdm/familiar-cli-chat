@@ -522,6 +522,30 @@ function describeManagedProcess(handle, logFile) {
   };
 }
 
+function planPortalStartup(mode, { localHealthy, hostedRouteOk }) {
+  if (mode === "runtime") {
+    return {
+      action: "start-runtime"
+    };
+  }
+
+  if (mode === "server") {
+    return localHealthy
+      ? { action: "reuse-local-server" }
+      : { action: "start-local-server" };
+  }
+
+  if (hostedRouteOk) {
+    return localHealthy
+      ? { action: "reuse-local-server" }
+      : { action: "start-local-server" };
+  }
+
+  return {
+    action: "start-runtime"
+  };
+}
+
 async function assertChildStillRunning(child, logFile, message) {
   if (child.exitCode !== null) {
     throw await buildStartupError(message, logFile);
@@ -819,26 +843,26 @@ async function ensurePortalRunning(config, portalConfig) {
   const mode = portalConfig.mode;
   try {
     const localHealthy = await isExecutorHealthy(portalConfig);
+    const route = mode === "auto" ? await checkHostedPortalRoute(config) : null;
+    const startupPlan = planPortalStartup(mode, {
+      localHealthy,
+      hostedRouteOk: route?.ok === true
+    });
 
-    if (mode === "runtime") {
+    if (startupPlan.action === "start-runtime") {
       spinner.update("Starting portal runtime...");
       const runtimeChild = await startPortalRuntime();
       spinner.update("Waiting for public portal route...");
-      const route = await waitForHostedPortalRouteOrRuntimeExit(config, runtimeChild);
+      const nextRoute = await waitForHostedPortalRouteOrRuntimeExit(config, runtimeChild);
       spinner.stop();
       return {
         process: runtimeChild,
         kind: "runtime",
-        warning: route.ok ? null : route.warning
+        warning: nextRoute.ok ? null : nextRoute.warning
       };
     }
 
-    if (mode === "server") {
-      if (localHealthy) {
-        spinner.stop(`Using existing portal on http://${portalConfig.host}:${portalConfig.port}`);
-        return null;
-      }
-
+    if (startupPlan.action === "start-local-server") {
       spinner.update("Starting local portal server...");
       const processHandle = await startPortalServer(portalConfig);
       spinner.stop();
@@ -848,28 +872,12 @@ async function ensurePortalRunning(config, portalConfig) {
       };
     }
 
-    const route = await checkHostedPortalRoute(config);
-    if (route.ok) {
-      if (localHealthy) {
-        spinner.stop(`Using existing portal on http://${portalConfig.host}:${portalConfig.port}`);
-      } else {
-        spinner.update("Starting local portal server...");
-        await startPortalServer(portalConfig);
-        spinner.stop();
-      }
+    if (startupPlan.action === "reuse-local-server") {
+      spinner.stop(`Using existing portal on http://${portalConfig.host}:${portalConfig.port}`);
       return null;
     }
 
-    spinner.update("Refreshing portal tunnel...");
-    const runtimeChild = await startPortalRuntime();
-    spinner.update("Waiting for public portal route...");
-    const nextRoute = await waitForHostedPortalRouteOrRuntimeExit(config, runtimeChild);
-    spinner.stop();
-    return {
-      process: runtimeChild,
-      kind: "runtime",
-      warning: nextRoute.ok ? null : nextRoute.warning
-    };
+    throw new Error(`Unsupported portal startup action: ${startupPlan.action}`);
   } catch (error) {
     spinner.stop();
     throw error;
@@ -1314,5 +1322,6 @@ export {
   applyThreadStateFromResponse,
   extractThreadId,
   extractThreadName,
-  getThreadDisplay
+  getThreadDisplay,
+  planPortalStartup
 };

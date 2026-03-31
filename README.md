@@ -98,6 +98,8 @@ node ./bin/cli-chat.js status
 
 The status payload includes thread display state, local portal health, hosted route health, managed child-process state, and relevant log file paths.
 
+The current automated coverage includes CLI thread-state helpers and the portal startup decision logic that determines when chat reuses the local server versus promoting to the full runtime.
+
 Sync tools from a JSON file:
 
 ```bash
