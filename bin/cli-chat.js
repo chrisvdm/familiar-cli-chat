@@ -1150,28 +1150,27 @@ function formatManagedProcessSummary(label, managedProcess) {
 
 function diagnoseStatus(status) {
   const findings = [];
+  const portalNeedsAttention = [];
 
   if (status.portal.auto_start && !status.portal.local_healthy) {
-    findings.push({
-      severity: "high",
-      message: `Portal local health check is failing at ${status.portal.local_url}.`
-    });
+    portalNeedsAttention.push(`local health check is failing at ${status.portal.local_url}`);
   }
 
   if (status.portal.hosted_route_warning) {
-    findings.push({
-      severity: "high",
-      message: status.portal.hosted_route_warning
-    });
+    portalNeedsAttention.push(status.portal.hosted_route_warning);
   }
 
   if (
     status.portal.managed_process?.kind &&
     status.portal.managed_process.running === false
   ) {
+    portalNeedsAttention.push(`managed process is not running (check ${status.portal.managed_process.log})`);
+  }
+
+  if (portalNeedsAttention.length > 0) {
     findings.push({
       severity: "high",
-      message: `Portal managed process is not running. Check ${status.portal.managed_process.log}.`
+      message: `Portal needs attention: ${portalNeedsAttention.join("; ")}.`
     });
   }
 

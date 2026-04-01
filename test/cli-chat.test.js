@@ -339,15 +339,7 @@ test("diagnoseStatus reports actionable portal and Discord problems", () => {
   assert.deepEqual(findings, [
     {
       severity: "high",
-      message: "Portal local health check is failing at http://127.0.0.1:8788."
-    },
-    {
-      severity: "high",
-      message: "Hosted route is stale."
-    },
-    {
-      severity: "high",
-      message: "Portal managed process is not running. Check /tmp/portal.log."
+      message: "Portal needs attention: local health check is failing at http://127.0.0.1:8788; Hosted route is stale.; managed process is not running (check /tmp/portal.log)."
     },
     {
       severity: "medium",
@@ -426,7 +418,7 @@ test("formatStatus renders a readable status summary", () => {
 
   assert.match(text, /Familiar: https:\/\/familiar\.example\.com/);
   assert.match(text, /Diagnosis/);
-  assert.match(text, /- \[high\] Route is stale\./);
+  assert.match(text, /- \[high\] Portal needs attention:/);
   assert.match(text, /Thread Name: Scratchpad/);
   assert.match(text, /Portal/);
   assert.match(text, /warning=Route is stale\./);
