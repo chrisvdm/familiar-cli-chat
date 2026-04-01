@@ -206,6 +206,10 @@ async function handleMessageCreate(message) {
 
   logDebug(`[discord] ${message.author?.username || "user"}: ${text}`);
 
+  if (mirrorToCli) {
+    await mirrorToCliChannel(`<-[discord] ${message.author?.username || "user"}: ${text}`);
+  }
+
   const portalResponse = await postJson(new URL("/conversation/input", portalBaseUrl), {
     channel: {
       type: "discord",
@@ -234,17 +238,7 @@ async function handleMessageCreate(message) {
   }
 
   if (mirrorToCli) {
-    const session = await readJson(STATE_FILE, {});
-    if (session?.channelId) {
-      await postJson(new URL("/channels/messages", portalBaseUrl), {
-        channel: {
-          type: "cli",
-          id: session.channelId
-        },
-        thread_id: session.threadId || null,
-        content: `[discord] ${replyText}`
-      });
-    }
+    await mirrorToCliChannel(`->[discord] familiar: ${replyText}`);
   }
 }
 
@@ -318,6 +312,22 @@ async function postJson(url, body) {
   }
 
   return data ?? text;
+}
+
+async function mirrorToCliChannel(content) {
+  const session = await readJson(STATE_FILE, {});
+  if (!session?.channelId) {
+    return;
+  }
+
+  await postJson(new URL("/channels/messages", portalBaseUrl), {
+    channel: {
+      type: "cli",
+      id: session.channelId
+    },
+    thread_id: session.threadId || null,
+    content
+  });
 }
 
 async function loadEnvFiles() {
