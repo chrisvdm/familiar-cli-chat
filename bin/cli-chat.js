@@ -1133,10 +1133,64 @@ async function buildStatus(config, state, { portalHandle = null, discordListener
   };
 }
 
+function formatManagedProcessSummary(label, managedProcess) {
+  if (!managedProcess) {
+    return `${label}: unavailable`;
+  }
+
+  const parts = [
+    `${label}: ${managedProcess.kind || "none"}`,
+    `running=${managedProcess.running ? "yes" : "no"}`,
+    `pid=${managedProcess.pid ?? "-"}`,
+    `log=${managedProcess.log}`
+  ];
+
+  return parts.join(" | ");
+}
+
+function formatStatus(status) {
+  const lines = [
+    `Familiar: ${status.familiar_base_url}`,
+    `Channel: ${status.channel}`,
+    `Thread: ${status.thread.display}`
+  ];
+
+  if (status.thread.id) {
+    lines.push(`Thread Id: ${status.thread.id}`);
+  }
+
+  if (status.thread.name) {
+    lines.push(`Thread Name: ${status.thread.name}`);
+  }
+
+  lines.push("");
+  lines.push("Portal");
+  lines.push(`  auto_start=${status.portal.auto_start ? "yes" : "no"} mode=${status.portal.mode}`);
+  lines.push(`  local_url=${status.portal.local_url}`);
+  lines.push(`  local_healthy=${status.portal.local_healthy ? "yes" : "no"}`);
+  lines.push(`  hosted_route_ok=${status.portal.hosted_route_ok === null ? "unknown" : status.portal.hosted_route_ok ? "yes" : "no"}`);
+  if (status.portal.hosted_route_warning) {
+    lines.push(`  warning=${status.portal.hosted_route_warning}`);
+  }
+  lines.push(`  ${formatManagedProcessSummary("managed_process", status.portal.managed_process)}`);
+
+  lines.push("");
+  lines.push("Discord");
+  lines.push(`  auto_start=${status.discord.auto_start ? "yes" : "no"} configured=${status.discord.configured ? "yes" : "no"}`);
+  lines.push(`  startup_action=${status.discord.startup_action}${status.discord.startup_reason ? ` (${status.discord.startup_reason})` : ""}`);
+  lines.push(`  ${formatManagedProcessSummary("managed_process", status.discord.managed_process)}`);
+
+  return lines.join("\n");
+}
+
 async function commandStatus(config, state, options = {}) {
   await hydrateThreadName(config, state, state.threadId || config.threadId || null);
   const status = await buildStatus(config, state, options);
-  console.log(JSON.stringify(status, null, 2));
+  if (options.json === true) {
+    console.log(JSON.stringify(status, null, 2));
+    return;
+  }
+  console.log(formatStatus(status));
 }
 
 async function commandThread(config, state, rest) {
@@ -1324,6 +1378,7 @@ async function main() {
   const state = await loadState();
   const config = getConfig(state);
   const { command, rest } = parseArgs(process.argv.slice(2));
+  const wantsJson = rest.includes("--json");
 
   switch (command) {
     case "chat":
@@ -1336,7 +1391,7 @@ async function main() {
       await commandInitAccount(state);
       return;
     case "status":
-      await commandStatus(config, state);
+      await commandStatus(config, state, { json: wantsJson });
       return;
     case "sync-tools":
       await commandSyncTools(config, rest);
@@ -1377,6 +1432,8 @@ export {
   describeManagedProcess,
   extractThreadId,
   extractThreadName,
+  formatManagedProcessSummary,
+  formatStatus,
   getThreadDisplay,
   planDiscordListenerStartup,
   planPortalStartup

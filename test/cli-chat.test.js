@@ -8,6 +8,8 @@ import {
   describeManagedProcess,
   extractThreadId,
   extractThreadName,
+  formatManagedProcessSummary,
+  formatStatus,
   getThreadDisplay,
   planDiscordListenerStartup,
   planPortalStartup
@@ -296,4 +298,61 @@ test("classifyHostedPortalHealth distinguishes unreachable, invalid, and healthy
       baseUrl: "https://portal.example.com"
     }
   );
+});
+
+test("formatManagedProcessSummary renders a compact process summary", () => {
+  assert.equal(
+    formatManagedProcessSummary("managed_process", {
+      kind: "runtime",
+      running: true,
+      pid: 1234,
+      log: "/tmp/runtime.log"
+    }),
+    "managed_process: runtime | running=yes | pid=1234 | log=/tmp/runtime.log"
+  );
+});
+
+test("formatStatus renders a readable status summary", () => {
+  const text = formatStatus({
+    familiar_base_url: "https://familiar.example.com",
+    channel: "cli:local-dev",
+    thread: {
+      id: "thread_123",
+      name: "Scratchpad",
+      display: "Scratchpad"
+    },
+    portal: {
+      auto_start: true,
+      mode: "auto",
+      local_url: "http://127.0.0.1:8788",
+      local_healthy: true,
+      hosted_route_ok: false,
+      hosted_route_warning: "Route is stale.",
+      managed_process: {
+        kind: "runtime",
+        running: true,
+        pid: 111,
+        log: "/tmp/portal.log"
+      }
+    },
+    discord: {
+      auto_start: true,
+      configured: false,
+      startup_action: "skip",
+      startup_reason: "missing-token",
+      managed_process: {
+        kind: null,
+        running: false,
+        pid: null,
+        log: "/tmp/discord.log"
+      }
+    }
+  });
+
+  assert.match(text, /Familiar: https:\/\/familiar\.example\.com/);
+  assert.match(text, /Thread Name: Scratchpad/);
+  assert.match(text, /Portal/);
+  assert.match(text, /warning=Route is stale\./);
+  assert.match(text, /Discord/);
+  assert.match(text, /startup_action=skip \(missing-token\)/);
 });

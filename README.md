@@ -96,7 +96,13 @@ Inspect portal, thread, and Discord listener status:
 node ./bin/cli-chat.js status
 ```
 
-The status payload includes thread display state, local portal health, hosted route health, managed child-process state, and relevant log file paths.
+Get the raw JSON form if you want to script against it:
+
+```bash
+node ./bin/cli-chat.js status --json
+```
+
+The default status view is now a readable summary of thread display state, local portal health, hosted route health, managed child-process state, and relevant log file paths.
 
 The current automated coverage includes CLI thread-state helpers and the portal startup decision logic that determines when chat reuses the local server versus promoting to the full runtime.
 
