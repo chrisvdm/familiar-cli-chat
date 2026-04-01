@@ -337,10 +337,22 @@ test("diagnoseStatus reports actionable portal and Discord problems", () => {
   });
 
   assert.deepEqual(findings, [
-    "Portal local health check is failing at http://127.0.0.1:8788.",
-    "Hosted route is stale.",
-    "Portal managed process is not running. Check /tmp/portal.log.",
-    "Discord listener auto-start is enabled but DISCORD_BOT_TOKEN is not configured."
+    {
+      severity: "high",
+      message: "Portal local health check is failing at http://127.0.0.1:8788."
+    },
+    {
+      severity: "high",
+      message: "Hosted route is stale."
+    },
+    {
+      severity: "high",
+      message: "Portal managed process is not running. Check /tmp/portal.log."
+    },
+    {
+      severity: "medium",
+      message: "Discord listener auto-start is enabled but DISCORD_BOT_TOKEN is not configured."
+    }
   ]);
 });
 
@@ -368,7 +380,10 @@ test("diagnoseStatus reports a dead Discord listener when it should be running",
   });
 
   assert.deepEqual(findings, [
-    "Discord listener should be running but is not. Check /tmp/discord.log."
+    {
+      severity: "medium",
+      message: "Discord listener should be running but is not. Check /tmp/discord.log."
+    }
   ]);
 });
 
@@ -411,7 +426,7 @@ test("formatStatus renders a readable status summary", () => {
 
   assert.match(text, /Familiar: https:\/\/familiar\.example\.com/);
   assert.match(text, /Diagnosis/);
-  assert.match(text, /- Route is stale\./);
+  assert.match(text, /- \[high\] Route is stale\./);
   assert.match(text, /Thread Name: Scratchpad/);
   assert.match(text, /Portal/);
   assert.match(text, /warning=Route is stale\./);

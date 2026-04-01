@@ -1152,32 +1152,53 @@ function diagnoseStatus(status) {
   const findings = [];
 
   if (status.portal.auto_start && !status.portal.local_healthy) {
-    findings.push(`Portal local health check is failing at ${status.portal.local_url}.`);
+    findings.push({
+      severity: "high",
+      message: `Portal local health check is failing at ${status.portal.local_url}.`
+    });
   }
 
   if (status.portal.hosted_route_warning) {
-    findings.push(status.portal.hosted_route_warning);
+    findings.push({
+      severity: "high",
+      message: status.portal.hosted_route_warning
+    });
   }
 
   if (
     status.portal.managed_process?.kind &&
     status.portal.managed_process.running === false
   ) {
-    findings.push(`Portal managed process is not running. Check ${status.portal.managed_process.log}.`);
+    findings.push({
+      severity: "high",
+      message: `Portal managed process is not running. Check ${status.portal.managed_process.log}.`
+    });
   }
 
   if (status.discord.startup_action === "skip" && status.discord.startup_reason === "missing-token") {
-    findings.push("Discord listener auto-start is enabled but DISCORD_BOT_TOKEN is not configured.");
+    findings.push({
+      severity: "medium",
+      message: "Discord listener auto-start is enabled but DISCORD_BOT_TOKEN is not configured."
+    });
   }
 
   if (
     status.discord.startup_action === "start" &&
     status.discord.managed_process?.running === false
   ) {
-    findings.push(`Discord listener should be running but is not. Check ${status.discord.managed_process.log}.`);
+    findings.push({
+      severity: "medium",
+      message: `Discord listener should be running but is not. Check ${status.discord.managed_process.log}.`
+    });
   }
 
-  return findings;
+  const order = {
+    high: 0,
+    medium: 1,
+    low: 2
+  };
+
+  return findings.sort((left, right) => order[left.severity] - order[right.severity]);
 }
 
 function formatStatus(status) {
@@ -1202,7 +1223,7 @@ function formatStatus(status) {
     lines.push("  ok");
   } else {
     for (const finding of findings) {
-      lines.push(`  - ${finding}`);
+      lines.push(`  - [${finding.severity}] ${finding.message}`);
     }
   }
 
