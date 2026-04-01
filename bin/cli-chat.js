@@ -1148,6 +1148,22 @@ function formatManagedProcessSummary(label, managedProcess) {
   return parts.join(" | ");
 }
 
+function formatEnabled(value) {
+  return value ? "yes" : "no";
+}
+
+function formatHealth(value) {
+  return value ? "yes" : "no";
+}
+
+function formatRouteState(value) {
+  if (value === null) {
+    return "unknown";
+  }
+
+  return value ? "yes" : "no";
+}
+
 function diagnoseStatus(status) {
   const findings = [];
   const portalNeedsAttention = [];
@@ -1239,10 +1255,10 @@ function formatStatus(status) {
 
   lines.push("");
   lines.push("Portal");
-  lines.push(`  auto_start=${status.portal.auto_start ? "yes" : "no"} mode=${status.portal.mode}`);
+  lines.push(`  auto_start=${formatEnabled(status.portal.auto_start)} mode=${status.portal.mode}`);
   lines.push(`  local_url=${status.portal.local_url}`);
-  lines.push(`  local_healthy=${status.portal.local_healthy ? "yes" : "no"}`);
-  lines.push(`  hosted_route_ok=${status.portal.hosted_route_ok === null ? "unknown" : status.portal.hosted_route_ok ? "yes" : "no"}`);
+  lines.push(`  local_healthy=${formatHealth(status.portal.local_healthy)}`);
+  lines.push(`  hosted_route_ok=${formatRouteState(status.portal.hosted_route_ok)}`);
   if (status.portal.hosted_route_warning && !hasPortalDiagnosis) {
     lines.push(`  warning=${status.portal.hosted_route_warning}`);
   }
@@ -1250,7 +1266,7 @@ function formatStatus(status) {
 
   lines.push("");
   lines.push("Discord");
-  lines.push(`  auto_start=${status.discord.auto_start ? "yes" : "no"} configured=${status.discord.configured ? "yes" : "no"}`);
+  lines.push(`  auto_start=${formatEnabled(status.discord.auto_start)} configured=${formatEnabled(status.discord.configured)}`);
   if (!hasDiscordStartupDiagnosis) {
     lines.push(`  startup_action=${status.discord.startup_action}${status.discord.startup_reason ? ` (${status.discord.startup_reason})` : ""}`);
   }
@@ -1519,8 +1535,11 @@ export {
   describeManagedProcess,
   extractThreadId,
   extractThreadName,
+  formatEnabled,
   formatChatStartup,
+  formatHealth,
   formatManagedProcessSummary,
+  formatRouteState,
   formatStatus,
   getThreadDisplay,
   planDiscordListenerStartup,

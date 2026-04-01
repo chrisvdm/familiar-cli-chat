@@ -9,8 +9,11 @@ import {
   describeManagedProcess,
   extractThreadId,
   extractThreadName,
+  formatEnabled,
   formatChatStartup,
+  formatHealth,
   formatManagedProcessSummary,
+  formatRouteState,
   formatStatus,
   getThreadDisplay,
   planDiscordListenerStartup,
@@ -312,6 +315,16 @@ test("formatManagedProcessSummary renders a compact process summary", () => {
     }),
     "managed_process: runtime | running=yes | pid=1234 | log=/tmp/runtime.log"
   );
+});
+
+test("formatEnabled, formatHealth, and formatRouteState keep status labels consistent", () => {
+  assert.equal(formatEnabled(true), "yes");
+  assert.equal(formatEnabled(false), "no");
+  assert.equal(formatHealth(true), "yes");
+  assert.equal(formatHealth(false), "no");
+  assert.equal(formatRouteState(true), "yes");
+  assert.equal(formatRouteState(false), "no");
+  assert.equal(formatRouteState(null), "unknown");
 });
 
 test("diagnoseStatus reports actionable portal and Discord problems", () => {
