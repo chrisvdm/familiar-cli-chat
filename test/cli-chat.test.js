@@ -17,7 +17,8 @@ import {
   formatStatus,
   getThreadDisplay,
   planDiscordListenerStartup,
-  planPortalStartup
+  planPortalStartup,
+  shouldIgnoreThreadMetadataError
 } from "../bin/cli-chat.js";
 
 test("extractThreadName finds nested thread names", () => {
@@ -325,6 +326,13 @@ test("formatEnabled, formatHealth, and formatRouteState keep status labels consi
   assert.equal(formatRouteState(true), "yes");
   assert.equal(formatRouteState(false), "no");
   assert.equal(formatRouteState(null), "unknown");
+});
+
+test("shouldIgnoreThreadMetadataError treats unsupported thread lookup routes as non-fatal", () => {
+  assert.equal(shouldIgnoreThreadMetadataError(404), true);
+  assert.equal(shouldIgnoreThreadMetadataError(405), true);
+  assert.equal(shouldIgnoreThreadMetadataError(500), false);
+  assert.equal(shouldIgnoreThreadMetadataError(undefined), false);
 });
 
 test("diagnoseStatus reports actionable portal and Discord problems", () => {

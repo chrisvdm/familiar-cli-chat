@@ -995,11 +995,15 @@ async function fetchThreadMetadata(config, threadId) {
   try {
     return await request(config, `/api/v1/threads/${encodeURIComponent(threadId)}`);
   } catch (error) {
-    if (error?.status === 404) {
+    if (shouldIgnoreThreadMetadataError(error?.status)) {
       return null;
     }
     throw error;
   }
+}
+
+function shouldIgnoreThreadMetadataError(status) {
+  return status === 404 || status === 405;
 }
 
 async function hydrateThreadName(config, state, threadId) {
@@ -1543,5 +1547,6 @@ export {
   formatStatus,
   getThreadDisplay,
   planDiscordListenerStartup,
-  planPortalStartup
+  planPortalStartup,
+  shouldIgnoreThreadMetadataError
 };
