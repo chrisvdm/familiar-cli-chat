@@ -9,6 +9,7 @@ import {
   describeManagedProcess,
   extractThreadId,
   extractThreadName,
+  formatChatStartup,
   formatManagedProcessSummary,
   formatStatus,
   getThreadDisplay,
@@ -428,4 +429,39 @@ test("formatStatus renders a readable status summary", () => {
   assert.doesNotMatch(text, /warning=Route is stale\./);
   assert.match(text, /Discord/);
   assert.doesNotMatch(text, /startup_action=skip \(missing-token\)/);
+});
+
+test("formatChatStartup renders a compact startup summary with top diagnosis", () => {
+  const text = formatChatStartup({
+    familiar_base_url: "https://familiar.example.com",
+    channel: "cli:local-dev",
+    thread: {
+      display: "Scratchpad"
+    },
+    portal: {
+      auto_start: true,
+      local_url: "http://127.0.0.1:8788",
+      local_healthy: false,
+      hosted_route_warning: "Hosted route is stale.",
+      managed_process: {
+        kind: "runtime",
+        running: false,
+        log: "/tmp/portal.log"
+      }
+    },
+    discord: {
+      startup_action: "skip",
+      startup_reason: "missing-token",
+      managed_process: {
+        running: false,
+        log: "/tmp/discord.log"
+      }
+    }
+  });
+
+  assert.match(text, /Connected to https:\/\/familiar\.example\.com/);
+  assert.match(text, /Channel: cli:local-dev/);
+  assert.match(text, /Thread: Scratchpad/);
+  assert.match(text, /Startup: \[high\] Portal needs attention:/);
+  assert.match(text, /Commands: \/new, \/thread, \/clear, \/status, \/whoami, \/exit/);
 });

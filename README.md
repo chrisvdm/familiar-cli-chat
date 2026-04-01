@@ -55,6 +55,8 @@ npm start -- chat
 
 If no `FAMILIAR_API_TOKEN` is set in your shell, `.env`, or `dev.vars`, the CLI creates a Familiar account automatically, stores the returned token in `.env`, and continues into chat.
 
+On startup, `chat` now prints a compact session summary with the current channel, thread, and the top startup diagnosis if anything needs attention.
+
 By default, `chat` auto-starts the local portal server on `127.0.0.1:8788`. If Familiar's configured public portal route is stale or missing, `chat` now escalates to the full portal runtime automatically so the Cloudflare tunnel and hosted `base_url` are refreshed.
 
 If `DISCORD_BOT_TOKEN` is configured, `chat` also auto-starts the Discord mention listener by default.

@@ -1259,6 +1259,24 @@ function formatStatus(status) {
   return lines.join("\n");
 }
 
+function formatChatStartup(status) {
+  const findings = diagnoseStatus(status);
+  const lines = [
+    `Connected to ${status.familiar_base_url}`,
+    `Channel: ${status.channel}`,
+    `Thread: ${status.thread.display}`
+  ];
+
+  if (findings.length === 0) {
+    lines.push("Startup: ok");
+  } else {
+    lines.push(`Startup: [${findings[0].severity}] ${findings[0].message}`);
+  }
+
+  lines.push("Commands: /new, /thread, /clear, /status, /whoami, /exit");
+  return lines.join("\n");
+}
+
 async function commandStatus(config, state, options = {}) {
   await hydrateThreadName(config, state, state.threadId || config.threadId || null);
   const status = await buildStatus(config, state, options);
@@ -1358,19 +1376,11 @@ async function commandChat(config, state) {
     }
     await inboxWatcher.prime();
 
-    console.log(`Connected to ${authenticatedConfig.baseUrl}`);
-    console.log(`Channel: ${authenticatedConfig.channelType}:${authenticatedConfig.channelId}`);
-    console.log(`Thread: ${getThreadDisplay(state, authenticatedConfig.threadId)}`);
-    console.log("Commands: /new, /thread, /clear, /status, /whoami, /exit");
-
-    if (portalHandle?.warning) {
-      console.log(`Warning: ${portalHandle.warning}`);
-    } else {
-      const portalRoute = await checkHostedPortalRoute(authenticatedConfig);
-      if (!portalRoute.ok) {
-        console.log(`Warning: ${portalRoute.warning}`);
-      }
-    }
+    const startupStatus = await buildStatus(authenticatedConfig, state, {
+      portalHandle,
+      discordListenerHandle
+    });
+    console.log(formatChatStartup(startupStatus));
 
     while (true) {
       const line = (await rl.question("> ")).trim();
@@ -1509,6 +1519,7 @@ export {
   describeManagedProcess,
   extractThreadId,
   extractThreadName,
+  formatChatStartup,
   formatManagedProcessSummary,
   formatStatus,
   getThreadDisplay,
