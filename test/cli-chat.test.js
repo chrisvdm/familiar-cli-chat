@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 
 import {
   applyThreadStateFromResponse,
+  classifyHostedPortalBaseUrl,
+  classifyHostedPortalHealth,
   describeManagedProcess,
   extractThreadId,
   extractThreadName,
@@ -226,6 +228,72 @@ test("describeManagedProcess reports a stopped child when exitCode is set", () =
       pid: 4567,
       running: false,
       log: "/tmp/discord.log"
+    }
+  );
+});
+
+test("classifyHostedPortalBaseUrl rejects missing, invalid, and local base URLs", () => {
+  assert.deepEqual(classifyHostedPortalBaseUrl(""), {
+    ok: false,
+    warning: "Familiar integration base_url is not configured. Run `npm run portal` to publish a tunnel and update it."
+  });
+
+  assert.deepEqual(classifyHostedPortalBaseUrl("not a url"), {
+    ok: false,
+    warning: "Familiar integration base_url is invalid: not a url"
+  });
+
+  assert.deepEqual(classifyHostedPortalBaseUrl("http://127.0.0.1:8788"), {
+    ok: false,
+    warning: "Familiar integration base_url points to a local address (http://127.0.0.1:8788), which hosted Familiar cannot reach. Run `npm run portal`."
+  });
+});
+
+test("classifyHostedPortalBaseUrl accepts a public base URL", () => {
+  const result = classifyHostedPortalBaseUrl("https://portal.example.com");
+
+  assert.equal(result.ok, true);
+  assert.equal(result.baseUrl, "https://portal.example.com");
+  assert.equal(result.url.hostname, "portal.example.com");
+});
+
+test("classifyHostedPortalHealth distinguishes unreachable, invalid, and healthy routes", () => {
+  assert.deepEqual(
+    classifyHostedPortalHealth("https://portal.example.com", {
+      reachable: false,
+      responseOk: false,
+      data: null
+    }),
+    {
+      ok: false,
+      warning: "Familiar integration base_url is set to https://portal.example.com, but it is not reachable right now. Run `npm run portal` to refresh the public tunnel."
+    }
+  );
+
+  assert.deepEqual(
+    classifyHostedPortalHealth("https://portal.example.com", {
+      reachable: true,
+      responseOk: false,
+      data: null
+    }),
+    {
+      ok: false,
+      warning: "Familiar integration base_url is set to https://portal.example.com, but /health did not return a valid portal response. Run `npm run portal` to refresh the public tunnel."
+    }
+  );
+
+  assert.deepEqual(
+    classifyHostedPortalHealth("https://portal.example.com", {
+      reachable: true,
+      responseOk: true,
+      data: {
+        ok: true,
+        service: "portal"
+      }
+    }),
+    {
+      ok: true,
+      baseUrl: "https://portal.example.com"
     }
   );
 });

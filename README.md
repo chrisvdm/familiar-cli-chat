@@ -104,6 +104,8 @@ The status payload also reports whether Discord listener auto-start will run, sk
 
 Managed process details in `status` are also covered by the current smoke tests so the local debugging surface does not drift silently.
 
+Hosted portal route classification and warning messages are also covered, including missing, invalid, local-only, unreachable, invalid-health, and healthy route cases.
+
 Sync tools from a JSON file:
 
 ```bash

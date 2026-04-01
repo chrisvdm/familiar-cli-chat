@@ -702,10 +702,7 @@ function isLocalHostname(hostname) {
   return ["127.0.0.1", "localhost", "::1"].includes(String(hostname || "").toLowerCase());
 }
 
-async function checkHostedPortalRoute(config) {
-  const payload = await fetchIntegration(config);
-  const baseUrl = payload?.integration?.base_url;
-
+function classifyHostedPortalBaseUrl(baseUrl) {
   if (typeof baseUrl !== "string" || !baseUrl.trim()) {
     return {
       ok: false,
@@ -730,8 +727,44 @@ async function checkHostedPortalRoute(config) {
     };
   }
 
+  return {
+    ok: true,
+    baseUrl,
+    url
+  };
+}
+
+function classifyHostedPortalHealth(baseUrl, { reachable, responseOk, data }) {
+  if (!reachable) {
+    return {
+      ok: false,
+      warning: `Familiar integration base_url is set to ${baseUrl}, but it is not reachable right now. Run \`npm run portal\` to refresh the public tunnel.`
+    };
+  }
+
+  if (!responseOk || data?.ok !== true || data?.service !== "portal") {
+    return {
+      ok: false,
+      warning: `Familiar integration base_url is set to ${baseUrl}, but /health did not return a valid portal response. Run \`npm run portal\` to refresh the public tunnel.`
+    };
+  }
+
+  return {
+    ok: true,
+    baseUrl
+  };
+}
+
+async function checkHostedPortalRoute(config) {
+  const payload = await fetchIntegration(config);
+  const baseUrl = payload?.integration?.base_url;
+  const baseUrlResult = classifyHostedPortalBaseUrl(baseUrl);
+  if (!baseUrlResult.ok) {
+    return baseUrlResult;
+  }
+
   try {
-    const healthResponse = await fetch(new URL("/health", url), {
+    const healthResponse = await fetch(new URL("/health", baseUrlResult.url), {
       headers: {
         Accept: "application/json"
       }
@@ -739,22 +772,17 @@ async function checkHostedPortalRoute(config) {
     const text = await healthResponse.text();
     const data = text ? safeParseJson(text) : null;
 
-    if (!healthResponse.ok || data?.ok !== true || data?.service !== "portal") {
-      return {
-        ok: false,
-        warning: `Familiar integration base_url is set to ${baseUrl}, but /health did not return a valid portal response. Run \`npm run portal\` to refresh the public tunnel.`
-      };
-    }
-
-    return {
-      ok: true,
-      baseUrl
-    };
+    return classifyHostedPortalHealth(baseUrl, {
+      reachable: true,
+      responseOk: healthResponse.ok,
+      data
+    });
   } catch {
-    return {
-      ok: false,
-      warning: `Familiar integration base_url is set to ${baseUrl}, but it is not reachable right now. Run \`npm run portal\` to refresh the public tunnel.`
-    };
+    return classifyHostedPortalHealth(baseUrl, {
+      reachable: false,
+      responseOk: false,
+      data: null
+    });
   }
 }
 
@@ -1344,6 +1372,8 @@ if (isDirectExecution) {
 
 export {
   applyThreadStateFromResponse,
+  classifyHostedPortalBaseUrl,
+  classifyHostedPortalHealth,
   describeManagedProcess,
   extractThreadId,
   extractThreadName,
