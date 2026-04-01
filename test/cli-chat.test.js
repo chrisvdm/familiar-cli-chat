@@ -460,6 +460,8 @@ test("formatChatStartup renders a compact startup summary with top diagnosis", (
       display: "Scratchpad"
     },
     portal: {
+      startup_severity: "warn",
+      startup_message: "Hosted portal route is still stale after refresh attempt; direct CLI chat should still work, but portal-dependent features may fail.",
       auto_start: true,
       local_url: "http://127.0.0.1:8788",
       local_healthy: false,
@@ -483,6 +485,6 @@ test("formatChatStartup renders a compact startup summary with top diagnosis", (
   assert.match(text, /Connected to https:\/\/familiar\.example\.com/);
   assert.match(text, /Channel: cli:local-dev/);
   assert.match(text, /Thread: Scratchpad/);
-  assert.match(text, /Startup: \[high\] Portal needs attention:/);
+  assert.match(text, /Startup: \[warn\] Hosted portal route is still stale after refresh attempt; direct CLI chat should still work, but portal-dependent features may fail\./);
   assert.match(text, /Commands: \/new, \/thread, \/clear, \/status, \/whoami, \/exit/);
 });

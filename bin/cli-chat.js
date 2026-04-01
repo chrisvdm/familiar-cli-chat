@@ -882,7 +882,12 @@ async function waitForHostedPortalRouteOrRuntimeExit(config, runtimeChild, timeo
 
 async function ensurePortalRunning(config, portalConfig) {
   if (!portalConfig.enabled) {
-    return null;
+    return {
+      kind: null,
+      startup_state: "disabled",
+      startup_severity: "info",
+      startup_message: "Portal auto-start is disabled. Direct CLI chat should still work."
+    };
   }
 
   const spinner = createSpinner("Checking portal route...");
@@ -906,7 +911,12 @@ async function ensurePortalRunning(config, portalConfig) {
       return {
         process: runtimeChild,
         kind: "runtime",
-        warning: nextRoute.ok ? null : nextRoute.warning
+        warning: nextRoute.ok ? null : nextRoute.warning,
+        startup_state: nextRoute.ok ? "refreshed" : "refresh-failed",
+        startup_severity: nextRoute.ok ? "info" : "warn",
+        startup_message: nextRoute.ok
+          ? "Hosted portal route refreshed."
+          : "Hosted portal route is still stale after refresh attempt; direct CLI chat should still work, but portal-dependent features may fail."
       };
     }
 
@@ -916,13 +926,21 @@ async function ensurePortalRunning(config, portalConfig) {
       spinner.stop();
       return {
         process: processHandle,
-        kind: "server"
+        kind: "server",
+        startup_state: "local-server-started",
+        startup_severity: "info",
+        startup_message: "Local portal server started."
       };
     }
 
     if (startupPlan.action === "reuse-local-server") {
       spinner.stop(`Using existing portal on http://${portalConfig.host}:${portalConfig.port}`);
-      return null;
+      return {
+        kind: "server",
+        startup_state: "reused-local-server",
+        startup_severity: "info",
+        startup_message: "Using existing local portal server."
+      };
     }
 
     throw new Error(`Unsupported portal startup action: ${startupPlan.action}`);
@@ -1117,6 +1135,9 @@ async function buildStatus(config, state, { portalHandle = null, discordListener
     portal: {
       auto_start: portalConfig.enabled,
       mode: portalConfig.mode,
+      startup_state: portalHandle?.startup_state || null,
+      startup_severity: portalHandle?.startup_severity || null,
+      startup_message: portalHandle?.startup_message || null,
       local_url: `http://${portalConfig.host}:${portalConfig.port}`,
       local_healthy: localPortalHealthy,
       hosted_route_ok: hostedPortalRoute?.ok ?? null,
@@ -1287,7 +1308,9 @@ function formatChatStartup(status) {
     `Thread: ${status.thread.display}`
   ];
 
-  if (findings.length === 0) {
+  if (status.portal.startup_message) {
+    lines.push(`Startup: [${status.portal.startup_severity || "info"}] ${status.portal.startup_message}`);
+  } else if (findings.length === 0) {
     lines.push("Startup: ok");
   } else {
     lines.push(`Startup: [${findings[0].severity}] ${findings[0].message}`);
