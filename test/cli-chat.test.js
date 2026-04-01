@@ -5,6 +5,7 @@ import {
   applyThreadStateFromResponse,
   classifyHostedPortalBaseUrl,
   classifyHostedPortalHealth,
+  diagnoseStatus,
   describeManagedProcess,
   extractThreadId,
   extractThreadName,
@@ -312,6 +313,65 @@ test("formatManagedProcessSummary renders a compact process summary", () => {
   );
 });
 
+test("diagnoseStatus reports actionable portal and Discord problems", () => {
+  const findings = diagnoseStatus({
+    portal: {
+      auto_start: true,
+      local_url: "http://127.0.0.1:8788",
+      local_healthy: false,
+      hosted_route_warning: "Hosted route is stale.",
+      managed_process: {
+        kind: "runtime",
+        running: false,
+        log: "/tmp/portal.log"
+      }
+    },
+    discord: {
+      startup_action: "skip",
+      startup_reason: "missing-token",
+      managed_process: {
+        running: false,
+        log: "/tmp/discord.log"
+      }
+    }
+  });
+
+  assert.deepEqual(findings, [
+    "Portal local health check is failing at http://127.0.0.1:8788.",
+    "Hosted route is stale.",
+    "Portal managed process is not running. Check /tmp/portal.log.",
+    "Discord listener auto-start is enabled but DISCORD_BOT_TOKEN is not configured."
+  ]);
+});
+
+test("diagnoseStatus reports a dead Discord listener when it should be running", () => {
+  const findings = diagnoseStatus({
+    portal: {
+      auto_start: false,
+      local_url: "http://127.0.0.1:8788",
+      local_healthy: true,
+      hosted_route_warning: null,
+      managed_process: {
+        kind: null,
+        running: false,
+        log: "/tmp/portal.log"
+      }
+    },
+    discord: {
+      startup_action: "start",
+      startup_reason: null,
+      managed_process: {
+        running: false,
+        log: "/tmp/discord.log"
+      }
+    }
+  });
+
+  assert.deepEqual(findings, [
+    "Discord listener should be running but is not. Check /tmp/discord.log."
+  ]);
+});
+
 test("formatStatus renders a readable status summary", () => {
   const text = formatStatus({
     familiar_base_url: "https://familiar.example.com",
@@ -350,6 +410,8 @@ test("formatStatus renders a readable status summary", () => {
   });
 
   assert.match(text, /Familiar: https:\/\/familiar\.example\.com/);
+  assert.match(text, /Diagnosis/);
+  assert.match(text, /- Route is stale\./);
   assert.match(text, /Thread Name: Scratchpad/);
   assert.match(text, /Portal/);
   assert.match(text, /warning=Route is stale\./);

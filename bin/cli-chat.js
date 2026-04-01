@@ -1148,7 +1148,40 @@ function formatManagedProcessSummary(label, managedProcess) {
   return parts.join(" | ");
 }
 
+function diagnoseStatus(status) {
+  const findings = [];
+
+  if (status.portal.auto_start && !status.portal.local_healthy) {
+    findings.push(`Portal local health check is failing at ${status.portal.local_url}.`);
+  }
+
+  if (status.portal.hosted_route_warning) {
+    findings.push(status.portal.hosted_route_warning);
+  }
+
+  if (
+    status.portal.managed_process?.kind &&
+    status.portal.managed_process.running === false
+  ) {
+    findings.push(`Portal managed process is not running. Check ${status.portal.managed_process.log}.`);
+  }
+
+  if (status.discord.startup_action === "skip" && status.discord.startup_reason === "missing-token") {
+    findings.push("Discord listener auto-start is enabled but DISCORD_BOT_TOKEN is not configured.");
+  }
+
+  if (
+    status.discord.startup_action === "start" &&
+    status.discord.managed_process?.running === false
+  ) {
+    findings.push(`Discord listener should be running but is not. Check ${status.discord.managed_process.log}.`);
+  }
+
+  return findings;
+}
+
 function formatStatus(status) {
+  const findings = diagnoseStatus(status);
   const lines = [
     `Familiar: ${status.familiar_base_url}`,
     `Channel: ${status.channel}`,
@@ -1161,6 +1194,16 @@ function formatStatus(status) {
 
   if (status.thread.name) {
     lines.push(`Thread Name: ${status.thread.name}`);
+  }
+
+  lines.push("");
+  lines.push("Diagnosis");
+  if (findings.length === 0) {
+    lines.push("  ok");
+  } else {
+    for (const finding of findings) {
+      lines.push(`  - ${finding}`);
+    }
   }
 
   lines.push("");
@@ -1429,6 +1472,7 @@ export {
   applyThreadStateFromResponse,
   classifyHostedPortalBaseUrl,
   classifyHostedPortalHealth,
+  diagnoseStatus,
   describeManagedProcess,
   extractThreadId,
   extractThreadName,
