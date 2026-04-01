@@ -339,11 +339,13 @@ test("diagnoseStatus reports actionable portal and Discord problems", () => {
   assert.deepEqual(findings, [
     {
       severity: "high",
-      message: "Portal needs attention: local health check is failing at http://127.0.0.1:8788; Hosted route is stale.; managed process is not running (check /tmp/portal.log)."
+      message: "Portal needs attention: local health check is failing at http://127.0.0.1:8788; Hosted route is stale.; managed process is not running (check /tmp/portal.log).",
+      nextStep: "Run `npm run portal` to refresh the local runtime and hosted route, then recheck `cli-chat status`."
     },
     {
       severity: "medium",
-      message: "Discord listener auto-start is enabled but DISCORD_BOT_TOKEN is not configured."
+      message: "Discord listener auto-start is enabled but DISCORD_BOT_TOKEN is not configured.",
+      nextStep: "Set `DISCORD_BOT_TOKEN` in `.env` if you want chat to auto-start the Discord listener."
     }
   ]);
 });
@@ -374,7 +376,8 @@ test("diagnoseStatus reports a dead Discord listener when it should be running",
   assert.deepEqual(findings, [
     {
       severity: "medium",
-      message: "Discord listener should be running but is not. Check /tmp/discord.log."
+      message: "Discord listener should be running but is not. Check /tmp/discord.log.",
+      nextStep: "Inspect /tmp/discord.log and restart chat or run `npm run discord:listen`."
     }
   ]);
 });
@@ -419,6 +422,7 @@ test("formatStatus renders a readable status summary", () => {
   assert.match(text, /Familiar: https:\/\/familiar\.example\.com/);
   assert.match(text, /Diagnosis/);
   assert.match(text, /- \[high\] Portal needs attention:/);
+  assert.match(text, /next: Run `npm run portal` to refresh the local runtime and hosted route, then recheck `cli-chat status`\./);
   assert.match(text, /Thread Name: Scratchpad/);
   assert.match(text, /Portal/);
   assert.match(text, /warning=Route is stale\./);

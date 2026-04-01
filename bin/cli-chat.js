@@ -1170,14 +1170,16 @@ function diagnoseStatus(status) {
   if (portalNeedsAttention.length > 0) {
     findings.push({
       severity: "high",
-      message: `Portal needs attention: ${portalNeedsAttention.join("; ")}.`
+      message: `Portal needs attention: ${portalNeedsAttention.join("; ")}.`,
+      nextStep: "Run `npm run portal` to refresh the local runtime and hosted route, then recheck `cli-chat status`."
     });
   }
 
   if (status.discord.startup_action === "skip" && status.discord.startup_reason === "missing-token") {
     findings.push({
       severity: "medium",
-      message: "Discord listener auto-start is enabled but DISCORD_BOT_TOKEN is not configured."
+      message: "Discord listener auto-start is enabled but DISCORD_BOT_TOKEN is not configured.",
+      nextStep: "Set `DISCORD_BOT_TOKEN` in `.env` if you want chat to auto-start the Discord listener."
     });
   }
 
@@ -1187,7 +1189,8 @@ function diagnoseStatus(status) {
   ) {
     findings.push({
       severity: "medium",
-      message: `Discord listener should be running but is not. Check ${status.discord.managed_process.log}.`
+      message: `Discord listener should be running but is not. Check ${status.discord.managed_process.log}.`,
+      nextStep: `Inspect ${status.discord.managed_process.log} and restart chat or run \`npm run discord:listen\`.`
     });
   }
 
@@ -1223,6 +1226,9 @@ function formatStatus(status) {
   } else {
     for (const finding of findings) {
       lines.push(`  - [${finding.severity}] ${finding.message}`);
+      if (finding.nextStep) {
+        lines.push(`    next: ${finding.nextStep}`);
+      }
     }
   }
 
