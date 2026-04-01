@@ -425,7 +425,7 @@ test("formatStatus renders a readable status summary", () => {
   assert.match(text, /next: Run `npm run portal` to refresh the local runtime and hosted route, then recheck `cli-chat status`\./);
   assert.match(text, /Thread Name: Scratchpad/);
   assert.match(text, /Portal/);
-  assert.match(text, /warning=Route is stale\./);
+  assert.doesNotMatch(text, /warning=Route is stale\./);
   assert.match(text, /Discord/);
-  assert.match(text, /startup_action=skip \(missing-token\)/);
+  assert.doesNotMatch(text, /startup_action=skip \(missing-token\)/);
 });

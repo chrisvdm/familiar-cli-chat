@@ -1205,6 +1205,11 @@ function diagnoseStatus(status) {
 
 function formatStatus(status) {
   const findings = diagnoseStatus(status);
+  const hasPortalDiagnosis = findings.some((finding) => finding.message.startsWith("Portal needs attention:"));
+  const hasDiscordStartupDiagnosis = findings.some((finding) => {
+    return finding.message.startsWith("Discord listener auto-start is enabled")
+      || finding.message.startsWith("Discord listener should be running");
+  });
   const lines = [
     `Familiar: ${status.familiar_base_url}`,
     `Channel: ${status.channel}`,
@@ -1238,7 +1243,7 @@ function formatStatus(status) {
   lines.push(`  local_url=${status.portal.local_url}`);
   lines.push(`  local_healthy=${status.portal.local_healthy ? "yes" : "no"}`);
   lines.push(`  hosted_route_ok=${status.portal.hosted_route_ok === null ? "unknown" : status.portal.hosted_route_ok ? "yes" : "no"}`);
-  if (status.portal.hosted_route_warning) {
+  if (status.portal.hosted_route_warning && !hasPortalDiagnosis) {
     lines.push(`  warning=${status.portal.hosted_route_warning}`);
   }
   lines.push(`  ${formatManagedProcessSummary("managed_process", status.portal.managed_process)}`);
@@ -1246,7 +1251,9 @@ function formatStatus(status) {
   lines.push("");
   lines.push("Discord");
   lines.push(`  auto_start=${status.discord.auto_start ? "yes" : "no"} configured=${status.discord.configured ? "yes" : "no"}`);
-  lines.push(`  startup_action=${status.discord.startup_action}${status.discord.startup_reason ? ` (${status.discord.startup_reason})` : ""}`);
+  if (!hasDiscordStartupDiagnosis) {
+    lines.push(`  startup_action=${status.discord.startup_action}${status.discord.startup_reason ? ` (${status.discord.startup_reason})` : ""}`);
+  }
   lines.push(`  ${formatManagedProcessSummary("managed_process", status.discord.managed_process)}`);
 
   return lines.join("\n");
