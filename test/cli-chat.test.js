@@ -16,6 +16,7 @@ import {
   formatRouteState,
   formatStatus,
   getThreadDisplay,
+  mergePersistedConversationState,
   planDiscordListenerStartup,
   planPortalStartup,
   shouldIgnoreThreadMetadataError
@@ -89,6 +90,46 @@ test("applyThreadStateFromResponse preserves the current name when the response 
   assert.deepEqual(state, {
     threadId: "thread_123",
     threadName: "Existing Name"
+  });
+});
+
+test("mergePersistedConversationState updates thread state from an external writer", () => {
+  const state = {
+    channelId: "cli-local",
+    threadId: "thread_old",
+    threadName: "Old Name"
+  };
+
+  const changed = mergePersistedConversationState(state, {
+    channelId: "cli-local",
+    threadId: "thread_new",
+    threadName: "Discord Thread"
+  });
+
+  assert.equal(changed, true);
+  assert.deepEqual(state, {
+    channelId: "cli-local",
+    threadId: "thread_new",
+    threadName: "Discord Thread"
+  });
+});
+
+test("mergePersistedConversationState ignores missing persisted keys", () => {
+  const state = {
+    channelId: "cli-local",
+    threadId: "thread_current",
+    threadName: "Current Name"
+  };
+
+  const changed = mergePersistedConversationState(state, {
+    channelId: "cli-local"
+  });
+
+  assert.equal(changed, false);
+  assert.deepEqual(state, {
+    channelId: "cli-local",
+    threadId: "thread_current",
+    threadName: "Current Name"
   });
 });
 

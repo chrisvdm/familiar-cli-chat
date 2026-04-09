@@ -93,6 +93,24 @@ async function saveState(nextState) {
   await writeJson(STATE_FILE, nextState);
 }
 
+function mergePersistedConversationState(state, persistedState) {
+  let changed = false;
+
+  for (const key of ["channelId", "threadId", "threadName"]) {
+    if (persistedState?.[key] !== undefined && persistedState[key] !== state[key]) {
+      state[key] = persistedState[key];
+      changed = true;
+    }
+  }
+
+  return changed;
+}
+
+async function refreshStateFromDisk(state) {
+  const persistedState = await loadState();
+  return mergePersistedConversationState(state, persistedState);
+}
+
 async function readChannelMessages() {
   return readJson(CHANNEL_MESSAGES_FILE, []);
 }
@@ -1431,6 +1449,8 @@ async function commandChat(config, state) {
         continue;
       }
 
+      await refreshStateFromDisk(state);
+
       if (line === "/exit" || line === "/quit" || line === "/q" || line === "/:q") {
         console.log("Goodbye! 👋");
         break;
@@ -1569,6 +1589,7 @@ export {
   formatRouteState,
   formatStatus,
   getThreadDisplay,
+  mergePersistedConversationState,
   planDiscordListenerStartup,
   planPortalStartup,
   shouldIgnoreThreadMetadataError

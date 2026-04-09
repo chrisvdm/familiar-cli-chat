@@ -226,6 +226,7 @@ async function handleMessageCreate(message) {
       author_id: message.author?.id || null
     }
   });
+  await applyPortalThreadState(portalResponse);
 
   const replyText = extractReplyText(portalResponse);
   if (!replyText) {
@@ -240,6 +241,34 @@ async function handleMessageCreate(message) {
   if (mirrorToCli) {
     await mirrorToCliChannel(`->[discord] familiar: ${replyText}`);
   }
+}
+
+async function applyPortalThreadState(portalResponse) {
+  const nextThreadId = extractThreadId(portalResponse);
+  const nextThreadName = extractThreadName(portalResponse);
+
+  if (!nextThreadId && !nextThreadName) {
+    return;
+  }
+
+  const session = await readJson(STATE_FILE, {});
+  let changed = false;
+
+  if (nextThreadId && nextThreadId !== session.threadId) {
+    session.threadId = nextThreadId;
+    changed = true;
+  }
+
+  if (nextThreadName && nextThreadName !== session.threadName) {
+    session.threadName = nextThreadName;
+    changed = true;
+  }
+
+  if (!changed) {
+    return;
+  }
+
+  await writeJson(STATE_FILE, session);
 }
 
 function normalizeMessageText(content, currentBotUserId) {
@@ -273,6 +302,50 @@ function extractReplyText(portalResponse) {
   }
 
   return "";
+}
+
+function extractThreadId(payload) {
+  const queue = [payload];
+
+  while (queue.length > 0) {
+    const value = queue.shift();
+    if (!value || typeof value !== "object") {
+      continue;
+    }
+
+    if (typeof value.thread_id === "string" && value.thread_id.trim()) {
+      return value.thread_id.trim();
+    }
+
+    for (const nested of Object.values(value)) {
+      queue.push(nested);
+    }
+  }
+
+  return null;
+}
+
+function extractThreadName(payload) {
+  const queue = [payload];
+
+  while (queue.length > 0) {
+    const value = queue.shift();
+    if (!value || typeof value !== "object") {
+      continue;
+    }
+
+    const id = typeof value.id === "string" ? value.id.trim() : "";
+    const name = typeof value.name === "string" ? value.name.trim() : "";
+    if (id && name) {
+      return name;
+    }
+
+    for (const nested of Object.values(value)) {
+      queue.push(nested);
+    }
+  }
+
+  return null;
 }
 
 async function sendDiscordChannelMessage(channelId, content) {
@@ -383,6 +456,11 @@ async function readJson(filePath, fallback) {
     }
     throw error;
   }
+}
+
+async function writeJson(filePath, value) {
+  await fs.mkdir(path.dirname(filePath), { recursive: true });
+  await fs.writeFile(filePath, JSON.stringify(value, null, 2) + "\n", "utf8");
 }
 
 function safeParseJson(text) {
